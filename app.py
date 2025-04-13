@@ -74,19 +74,41 @@ def generate_cards():
   lines = list(set(lines))
   return lines
 
-@app.route('/')
-def index():
-    cards = generate_cards()
-    selected_emojis = random.sample(cards, 1)[0] # pick one random card to display
+def shuffle_cards(cards):
+    random.shuffle(cards)
+    return cards
+
+cards = generate_cards()
+cards = shuffle_cards(cards)
+n_players = 5 # number of players
+cards_pile = {player_id: [cards[player_id]] for player_id in range(n_players)}
+cards_pile['center'] = cards[n_players:]
+
+def emojis_to_show(card):
+    """
+        Given a card, translate the emoji index into actual emoji character,
+        and assign random size, random rotation, and index for location
+    """
     emojis_to_show = []
-    for i, emoji in enumerate(selected_emojis):
+    for i, emoji in enumerate(card):
         e = {}
         e['emoji'] = ALL_EMOJIS[emoji]
         e['size'] = random.randint(20, 80)
         e['rotation'] = random.randint(0, 360)
         e['index'] = i # index determines the location of each emoji on card
         emojis_to_show.append(e)
-    return render_template('emojis.html', emojis=emojis_to_show)
+    return emojis_to_show
+
+
+@app.route('/')
+def index():
+    player_id = 0 # this example is for player 0
+    player_card = cards_pile[player_id][-1] # most recent card
+    center_card = cards_pile["center"][0] # top card of the center deck
+    player_emojis = emojis_to_show(player_card)
+    center_emojis = emojis_to_show(center_card)
+
+    return render_template('emojis.html', player_emojis=player_emojis, center_emojis=center_emojis)
 
 @app.route('/clicked', methods=['POST'])
 def clicked():
