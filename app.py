@@ -90,9 +90,9 @@ def emojis_to_show(card):
         and assign random size, random rotation, and index for location
     """
     emojis_to_show = []
-    for i, emoji in enumerate(card):
+    for i, emoji_id in enumerate(card):
         e = {}
-        e['emoji'] = ALL_EMOJIS[emoji]
+        e['emoji'] = ALL_EMOJIS[emoji_id]
         e['size'] = random.randint(20, 80)
         e['rotation'] = random.randint(0, 360)
         e['index'] = i # index determines the location of each emoji on card
@@ -110,12 +110,45 @@ def index():
 
     return render_template('emojis.html', player_emojis=player_emojis, center_emojis=center_emojis)
 
-@app.route('/clicked', methods=['POST'])
-def clicked():
+last_clicked_player_emoji = None
+last_clicked_center_emoji = None
+
+@app.route('/clickedPlayer', methods=['POST'])
+def clicked_player():
+    global last_clicked_player_emoji, last_clicked_center_emoji
     data = request.get_json()
-    emoji = data.get('emoji')
-    print(f'Emoji clicked: {emoji}')
-    return jsonify({'message': f'You clicked on {emoji}!'})
+    last_clicked_player_emoji = data.get('emoji')
+    if last_clicked_player_emoji == last_clicked_center_emoji: # matched
+        json_message = jsonify({'message': f'You found a match {last_clicked_player_emoji}!'})
+        last_clicked_player_emoji = None
+        last_clicked_center_emoji = None
+        return json_message
+    elif last_clicked_center_emoji is not None: # not matched
+        json_message = jsonify({'message': f'{last_clicked_player_emoji} and {last_clicked_center_emoji} is not a match!'})
+        last_clicked_player_emoji = None
+        last_clicked_center_emoji = None
+        return json_message
+    else: # center emoji yet to be clicked
+        return jsonify({})
+    
+@app.route('/clickedCenter', methods=['POST'])
+def clicked_center():
+    global last_clicked_player_emoji, last_clicked_center_emoji
+    data = request.get_json()
+    last_clicked_center_emoji = data.get('emoji')
+    if last_clicked_player_emoji == last_clicked_center_emoji: # matched
+        json_message = jsonify({'message': f'You found a match {last_clicked_player_emoji}!'})
+        last_clicked_player_emoji = None
+        last_clicked_center_emoji = None
+        return json_message
+    elif last_clicked_player_emoji is not None: # not matched
+        json_message = jsonify({'message': f'{last_clicked_player_emoji} and {last_clicked_center_emoji} is not a match!'})
+        last_clicked_player_emoji = None
+        last_clicked_center_emoji = None
+        return json_message
+    else: # player emoji yet to be clicked
+        return jsonify({})
+
 
 if __name__ == '__main__':
     app.run(debug=True)
