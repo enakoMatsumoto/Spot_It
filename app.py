@@ -134,18 +134,24 @@ def clicked_player():
         json_message = jsonify({
             'message': f'You found a match {last_clicked_player_emoji}!',
             'player_emojis': player_emojis,
-            'center_emojis': center_emojis
+            'center_emojis': center_emojis,
+            'clear_highlight': True
         })
         last_clicked_player_emoji = None
         last_clicked_center_emoji = None
         return json_message
     elif last_clicked_center_emoji is not None: # not matched
-        json_message = jsonify({'message': f'{last_clicked_player_emoji} and {last_clicked_center_emoji} is not a match!'})
+        json_message = jsonify({
+            'message': f'{last_clicked_player_emoji} and {last_clicked_center_emoji} is not a match!',
+            'clear_highlight': True
+        })
         last_clicked_player_emoji = None
         last_clicked_center_emoji = None
         return json_message
     else: # center emoji yet to be clicked
-        return jsonify({})
+        return jsonify({
+            'highlight': last_clicked_player_emoji
+        })
     
 @app.route('/clickedCenter', methods=['POST'])
 def clicked_center():
@@ -157,18 +163,24 @@ def clicked_center():
         json_message = jsonify({
             'message': f'You found a match {last_clicked_player_emoji}!',
             'player_emojis': player_emojis,
-            'center_emojis': center_emojis
+            'center_emojis': center_emojis,
+            'clear_highlight': True
         })
         last_clicked_player_emoji = None
         last_clicked_center_emoji = None
         return json_message
     elif last_clicked_player_emoji is not None: # not matched
-        json_message = jsonify({'message': f'{last_clicked_player_emoji} and {last_clicked_center_emoji} is not a match!'})
+        json_message = jsonify({
+            'message': f'{last_clicked_player_emoji} and {last_clicked_center_emoji} is not a match!',
+            'clear_highlight': True
+        })
         last_clicked_player_emoji = None
         last_clicked_center_emoji = None
         return json_message
     else: # player emoji yet to be clicked
-        return jsonify({})
+        return jsonify({
+            'highlight': last_clicked_center_emoji
+        })
 
 
 if __name__ == '__main__':
