@@ -171,9 +171,7 @@
       centerContainer.innerHTML = '';
       playerContainer.innerHTML = '';
 
-      console.log(newCenterEmojis, newPlayerEmojis)
-
-      if (newCenterEmojis.startsWith("DONE")) { // game over
+      if (typeof newCenterEmojis === 'string' && newCenterEmojis.startsWith("DONE")) { // game over
         const winner = newCenterEmojis.split(" ")[1];
         Swal.fire({
           title: "Game Over",
