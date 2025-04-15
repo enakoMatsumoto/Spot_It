@@ -8,7 +8,7 @@ app = Flask(__name__)
 
 ALL_EMOJIS = [
     "😀", "😂", "🥰", "😎", "😭", "😡", "👍", "👄", "🙏", "💪", 
-    "🔥", "🌟", "🎉", "🎶", "🚀", "🍕", "🍔", "🍎", "⚽", "🏀",
+    "🔥", "🐣", "🎉", "🎶", "🚀", "🍕", "🍔", "🍎", "⚽", "🏀",
     "🐶", "🐱", "🐼", "🦄", "🌈", "🍄", "🌍", "🌙", "☀️", "⭐",
     "🏡", "🏖️", "🛒", "✈️", "🚗", "🚲", "💡", "📚", "💻", "📱",
     "🎮", "🎨", "🎤", "🏆", "🥇", "🥈", "🥉", "🚴", "🏃", "🧘",
@@ -63,6 +63,8 @@ def generate_cards():
                 if (a, b, c) != (0, 0, 0):
                     line = []
                     i = 0
+                    indices = list(range(8))
+                    random.shuffle(indices)
                     for emoji_id, (x, y, z) in enumerate(norm_points):
                         if (a * x + b * y + c * z) % q == 0:
                                 # line.append((x, y, z))
@@ -70,7 +72,7 @@ def generate_cards():
                                 e['emoji'] = ALL_EMOJIS[emoji_id]
                                 e['size'] = random.randint(20, 80)
                                 e['rotation'] = random.randint(0, 360)
-                                e['index'] = i # index determines the location of each emoji on card
+                                e['index'] = indices[i] # index determines the location of each emoji on card
                                 line.append(e)
                                 i += 1
                     if i == 8:
@@ -98,44 +100,60 @@ def shuffle_cards(cards):
 
 cards = generate_cards()
 cards = shuffle_cards(cards)
-n_players = 5 # number of players
+names = ['player1', 'player2', 'player3', 'player4', 'player5']
+n_players = len(names) # number of players
 cards_pile = {player_id: [cards[player_id]] for player_id in range(n_players)}
 cards_pile['center'] = deque(cards[n_players:])
+scores = [0]*n_players
 
 player_id = 0 # this example is for player 0
+
+def get_player_center_emojis():
+    player_emojis = cards_pile[player_id][-1] # most recent card
+    try:
+        center_emojis = cards_pile["center"][0] # top card of the center deck
+    except: # ran out of cards in the center pile
+        winner = max(zip(scores, names))[1]
+        center_emojis = f"DONE {winner}"
+
+    return player_emojis, center_emojis
 
 def update_cards():
     # TODO THIS DOES NOT ACCOUNT FOR THE CASE WHERE ANOTHER PLAYER GOT A MATCH SO ONLY THE CENTER GETS UPDATED
     cards_pile[player_id].append(cards_pile['center'][0])
     cards_pile['center'].popleft()
 
-    player_emojis = cards_pile[player_id][-1] # most recent card
-    center_emojis = cards_pile["center"][0] # top card of the center deck
+    player_emojis, center_emojis = get_player_center_emojis()
 
     return player_emojis, center_emojis
 
 @app.route('/')
 def index():
-    player_emojis = cards_pile[player_id][-1] # most recent card
-    center_emojis = cards_pile["center"][0] # top card of the center deck
-
-    return render_template('emojis.html', player_emojis=player_emojis, center_emojis=center_emojis)
+    player_emojis, center_emojis = get_player_center_emojis()
+    return render_template('emojis.html', 
+                           player_emojis=player_emojis, 
+                           center_emojis=center_emojis, 
+                           names = names,
+                           scores=scores)
 
 last_clicked_player_emoji = None
 last_clicked_center_emoji = None
 
 @app.route('/clickedPlayer', methods=['POST'])
 def clicked_player():
-    global last_clicked_player_emoji, last_clicked_center_emoji
+    global last_clicked_player_emoji, last_clicked_center_emoji, scores
     data = request.get_json()
     last_clicked_player_emoji = data.get('emoji')
     if last_clicked_player_emoji == last_clicked_center_emoji: # matched
+        scores[player_id] += 1
         player_emojis, center_emojis = update_cards()
         json_message = jsonify({
             'message': f'You found a match {last_clicked_player_emoji}!',
             'player_emojis': player_emojis,
             'center_emojis': center_emojis,
-            'clear_highlight': True
+            'clear_highlight': True,
+            'names': names,
+            'scores': scores
         })
         last_clicked_player_emoji = None
         last_clicked_center_emoji = None
@@ -155,16 +173,19 @@ def clicked_player():
     
 @app.route('/clickedCenter', methods=['POST'])
 def clicked_center():
-    global last_clicked_player_emoji, last_clicked_center_emoji
+    global last_clicked_player_emoji, last_clicked_center_emoji, scores
     data = request.get_json()
     last_clicked_center_emoji = data.get('emoji')
     if last_clicked_player_emoji == last_clicked_center_emoji: # matched
+        scores[player_id] += 1
         player_emojis, center_emojis = update_cards()
         json_message = jsonify({
             'message': f'You found a match {last_clicked_player_emoji}!',
             'player_emojis': player_emojis,
             'center_emojis': center_emojis,
-            'clear_highlight': True
+            'clear_highlight': True,
+            'names': names,
+            'scores': scores
         })
         last_clicked_player_emoji = None
         last_clicked_center_emoji = None
@@ -181,7 +202,16 @@ def clicked_center():
         return jsonify({
             'highlight': last_clicked_center_emoji
         })
-
+    
+@app.route('/shuffle', methods=['POST'])
+def shuffle():
+    cards_pile['center'] = deque(shuffle_cards(cards_pile['center']))
+    player_emojis, center_emojis = get_player_center_emojis()
+    return jsonify({
+        'player_emojis': player_emojis,
+        'center_emojis': center_emojis,
+        'clear_highlight': True
+    })
 
 if __name__ == '__main__':
     app.run(debug=True)

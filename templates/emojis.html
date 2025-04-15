@@ -18,18 +18,22 @@
       position: relative;
       width: 400px;
       height: 400px;
-      border-radius: 50%; /* Makes it a perfect circle */
+      border-radius: 50%;
+      /* Makes it a perfect circle */
       overflow: hidden;
-      background: #f9f9f9; /* light background to see boundary */
+      background: #f9f9f9;
+      /* light background to see boundary */
     }
 
     #player-circle-container {
       position: relative;
       width: 400px;
       height: 400px;
-      border-radius: 50%; /* Makes it a perfect circle */
+      border-radius: 50%;
+      /* Makes it a perfect circle */
       overflow: hidden;
-      background: #f9f9f9; /* light background to see boundary */
+      background: #f9f9f9;
+      /* light background to see boundary */
     }
 
     .emoji {
@@ -49,34 +53,81 @@
       background-color: rgba(255, 223, 0, 0.3);
       transition: all 0.3s ease;
     }
+
+    .swal2-button {
+      background-color: #3085d6;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .swal2-button:hover {
+      background-color: #256bb5;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 
 <body>
+  <div style="display: flex; justify-content: center; gap: 80px;">
+    <div style="text-align: center;">
+      <div style="font-weight: bold; margin-bottom: 10px;">CENTER</div>
+      <div id="center-circle-container"
+        style="position: relative; width: 400px; height: 400px; border: 2px solid #ccc; border-radius: 50%; margin: auto; margin-top: 50px;">
+        {% for e in center_emojis %}
+        <span class="emoji" data-index="{{ e.index }}"
+          style="position: absolute; font-size: {{ e.size }}px; transform: rotate({{ e.rotation }}deg);"
+          onclick="emojiClicked('{{ e.emoji }}', false)">
+          {{ e.emoji }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
 
-  CENTER PILE
-  <div id="center-circle-container"
-    style="position: relative; width: 400px; height: 400px; border: 2px solid #ccc; border-radius: 50%; margin: auto; margin-top: 50px;">
-    {% for e in center_emojis %}
-    <span class="emoji" data-index="{{ e.index }}"
-      style="position: absolute; font-size: {{ e.size }}px; transform: rotate({{ e.rotation }}deg);"
-      onclick="emojiClicked('{{ e.emoji }}', false)">
-      {{ e.emoji }}
-    </span>
-    {% endfor %}
+    <div style="text-align: center;">
+      <div style="font-weight: bold; margin-bottom: 10px;">PLAYER</div>
+      <div id="player-circle-container"
+        style="position: relative; width: 400px; height: 400px; border: 2px solid #ccc; border-radius: 50%; margin: auto; margin-top: 50px;">
+        {% for e in player_emojis %}
+        <span class="emoji" data-index="{{ e.index }}"
+          style="position: absolute; font-size: {{ e.size }}px; transform: rotate({{ e.rotation }}deg);"
+          onclick="emojiClicked('{{ e.emoji }}', true)">
+          {{ e.emoji }}
+        </span>
+        {% endfor %}
+      </div>
+    </div>
   </div>
 
-  PLAYER
-  <div id="player-circle-container"
-    style="position: relative; width: 400px; height: 400px; border: 2px solid #ccc; border-radius: 50%; margin: auto; margin-top: 50px;">
-    {% for e in player_emojis %}
-    <span class="emoji" data-index="{{ e.index }}"
-      style="position: absolute; font-size: {{ e.size }}px; transform: rotate({{ e.rotation }}deg);"
-      onclick="emojiClicked('{{ e.emoji }}', true)">
-      {{ e.emoji }}
-    </span>
-    {% endfor %}
+  <button class="swal2-button" onclick="shuffle()" style="
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;">Shuffle Deck</button>
+
+  <div id="scoreboard" style="
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    padding: 10px 15px;
+    font-family: sans-serif;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  ">
+    <table id="score-table">
+      <thead>
+        <tr id="name-row"></tr>
+      </thead>
+      <tbody>
+        <tr id="score-row"></tr>
+      </tbody>
+    </table>
   </div>
 
 
@@ -120,17 +171,29 @@
       centerContainer.innerHTML = '';
       playerContainer.innerHTML = '';
 
-      // Add new center emojis
-      newCenterEmojis.forEach(e => {
-        const span = document.createElement('span');
-        span.className = 'emoji';
-        span.setAttribute('data-index', e.index);
-        span.style.fontSize = `${e.size}px`;
-        span.style.transform = `rotate(${e.rotation}deg)`;
-        span.onclick = () => emojiClicked(e.emoji, false);
-        span.innerText = e.emoji;
-        centerContainer.appendChild(span);
-      });
+      console.log(newCenterEmojis, newPlayerEmojis)
+
+      if (newCenterEmojis.startsWith("DONE")) { // game over
+        const winner = newCenterEmojis.split(" ")[1];
+        Swal.fire({
+          title: "Game Over",
+          icon: "success",
+          text: `Winner is ${winner} 🎉`,
+          scrollbarPadding: false
+        });
+      } else {
+        // Add new center emojis
+        newCenterEmojis.forEach(e => {
+          const span = document.createElement('span');
+          span.className = 'emoji';
+          span.setAttribute('data-index', e.index);
+          span.style.fontSize = `${e.size}px`;
+          span.style.transform = `rotate(${e.rotation}deg)`;
+          span.onclick = () => emojiClicked(e.emoji, false);
+          span.innerText = e.emoji;
+          centerContainer.appendChild(span);
+        });
+      }
 
       // Add new player emojis
       newPlayerEmojis.forEach(e => {
@@ -184,7 +247,6 @@
             });
           }
           if (data && data.center_emojis && data.player_emojis) {
-            console.log('UPDATING')
             updateCard(data.center_emojis, data.player_emojis);
           }
           if (data && data.highlight) {
@@ -194,8 +256,67 @@
           if (data && data.clear_highlight) {
             clearHighlights();
           }
+          if (data && data.names && data.scores) { // update scoreboard
+            updateScoreboard(data.names, data.scores)
+          }
         });
     }
+
+    function shuffle() {
+      fetch('/shuffle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+        .then(response => response.json())
+        .then(data => { // for a nice popup message
+          if (data && data.center_emojis == "DONE") {
+            Swal.fire({
+              title: "Cannot Shuffled",
+              icon: "error",
+              text: "No more cards in the center pile",
+              scrollbarPadding: false
+            });
+          }
+          else if (data && data.center_emojis && data.player_emojis && data.clear_highlight) {
+            Swal.fire({
+              title: "Shuffled",
+              icon: "success",
+              scrollbarPadding: false
+            });
+            clearHighlights();
+            updateCard(data.center_emojis, data.player_emojis);
+          }
+        });
+    }
+
+    function updateScoreboard(names, scores) {
+      const nameRow = document.getElementById('name-row');
+      const scoreRow = document.getElementById('score-row');
+
+      nameRow.innerHTML = '';  // Clear previous content
+      scoreRow.innerHTML = '';
+
+      names.forEach(name => {
+        const th = document.createElement('th');
+        th.textContent = name;
+        th.style.padding = '0 10px';
+        nameRow.appendChild(th);
+      });
+
+      scores.forEach(score => {
+        const td = document.createElement('td');
+        td.textContent = score;
+        td.style.textAlign = 'center';
+        td.style.padding = '4px 10px';
+        scoreRow.appendChild(td);
+      });
+    }
+
+    const init_names = {{ names | tojson }};
+    const init_scores = {{ scores | tojson }};
+    // Call it to populate
+    updateScoreboard(init_names, init_scores);
+
 
     // Arrange the emojis once the page loads
     window.onload = arrangeEmojiForAll;
