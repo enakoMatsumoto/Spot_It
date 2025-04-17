@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, url_for
 import random
 import numpy as np
 import sympy
@@ -99,6 +99,7 @@ def shuffle_cards(cards):
 
 names = ['player1', 'player2', 'player3', 'player4', 'player5'] # example names
 player_id = 0 # example for if the player's id is
+cards, cards_pile, scores = None, None, None
 
 def new_game_state():
     cards = generate_cards()
@@ -109,8 +110,6 @@ def new_game_state():
     scores = [0]*n_players
 
     return cards, cards_pile, scores
-
-cards, cards_pile, scores = new_game_state()
 
 def get_player_center_emojis():
     player_emojis = cards_pile[player_id][-1] # most recent card
@@ -132,13 +131,31 @@ def update_cards():
     return player_emojis, center_emojis
 
 @app.route('/')
-def index():
+def login():
+    return render_template('login.html')
+
+@app.route('/start_new_game', methods=['POST'])
+def start_new_game():
+    return jsonify({"redirect_url": url_for('spot_it_game')})
+
+@app.route('/spot_it_game')
+def spot_it_game():
+    # Load state from wherever you stored it earlier (e.g., session)
+    global cards, cards_pile, scores
+    cards, cards_pile, scores = new_game_state()
     player_emojis, center_emojis = get_player_center_emojis()
     return render_template('emojis.html', 
                            player_emojis=player_emojis, 
                            center_emojis=center_emojis, 
-                           names = names,
+                           names=names,
                            scores=scores)
+
+@app.route('/set_username', methods=['POST'])
+def set_username():
+    global names 
+    data = request.get_json()
+    username = data.get('username')
+    names.append(username)
 
 last_clicked_player_emoji = None
 last_clicked_center_emoji = None
