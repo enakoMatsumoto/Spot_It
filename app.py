@@ -100,13 +100,13 @@ def shuffle_cards(cards):
 
 cards = generate_cards()
 cards = shuffle_cards(cards)
-names = ['player1', 'player2', 'player3', 'player4', 'player5']
+names = ['player1', 'player2', 'player3', 'player4', 'player5'] # example names
 n_players = len(names) # number of players
 cards_pile = {player_id: [cards[player_id]] for player_id in range(n_players)}
 cards_pile['center'] = deque(cards[n_players:])
 scores = [0]*n_players
 
-player_id = 0 # this example is for player 0
+player_id = 0 # example for if the player's id is 0
 
 def get_player_center_emojis():
     player_emojis = cards_pile[player_id][-1] # most recent card
