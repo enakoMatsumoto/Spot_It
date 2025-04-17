@@ -100,7 +100,7 @@ def shuffle_cards(cards):
 names = ['player1', 'player2', 'player3', 'player4', 'player5'] # example names
 player_id = 0 # example for if the player's id is
 
-def start_game():
+def new_game_state():
     cards = generate_cards()
     cards = shuffle_cards(cards)
     n_players = len(names) # number of players
@@ -110,7 +110,7 @@ def start_game():
 
     return cards, cards_pile, scores
 
-cards, cards_pile, scores = start_game()
+cards, cards_pile, scores = new_game_state()
 
 def get_player_center_emojis():
     player_emojis = cards_pile[player_id][-1] # most recent card
