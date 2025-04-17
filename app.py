@@ -77,8 +77,7 @@ def generate_cards():
                                 i += 1
                     if i == 8:
                         # Normalize line by sorting points
-                        # line_sorted = tuple(sorted(line))
-                        lines.append(tuple(line))
+                        lines.append(line)
 
   # Deduplicate lines
     seen = set()
@@ -106,7 +105,7 @@ cards_pile = {player_id: [cards[player_id]] for player_id in range(n_players)}
 cards_pile['center'] = deque(cards[n_players:])
 scores = [0]*n_players
 
-player_id = 0 # example for if the player's id is 0
+player_id = 0 # example for if the player's id is
 
 def get_player_center_emojis():
     player_emojis = cards_pile[player_id][-1] # most recent card
@@ -212,6 +211,43 @@ def shuffle():
         'center_emojis': center_emojis,
         'clear_highlight': True
     })
+
+@app.route('/rotate', methods=['POST'])
+def rotate():
+    data = request.get_json()
+    direction = data.get('direction')
+    
+    player_emojis = cards_pile[player_id][-1] # most recent card
+
+    for player_emoji in player_emojis:
+        if direction == 'clockwise':
+            # location change
+            if player_emoji['index'] != 0:
+                player_emoji['index'] = (player_emoji['index'] % 7) + 1
+            # rotation change
+            player_emoji['rotation'] = (player_emoji['rotation'] + 360/7) % 360
+
+        if direction == 'counterclockwise':
+            # location change
+            if player_emoji['index'] != 0:
+                player_emoji['index'] = ((player_emoji['index'] - 2) % 7) + 1
+            # rotation change
+            player_emoji['rotation'] = (player_emoji['rotation'] - 360/7) % 360
+
+    player_emojis, center_emojis = get_player_center_emojis()
+
+    response = {
+        'player_emojis': player_emojis,
+        'center_emojis': center_emojis
+    }
+
+    if last_clicked_center_emoji and last_clicked_player_emoji is None:
+        response['containerId'] = "center-circle-container"
+        response['highlight'] = last_clicked_center_emoji
+    elif last_clicked_player_emoji and last_clicked_center_emoji is None:
+        response['containerId'] = "player-circle-container"
+        response['highlight'] = last_clicked_player_emoji
+    return jsonify(response)
 
 if __name__ == '__main__':
     app.run(debug=True)
