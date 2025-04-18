@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Spot It! Online</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+
+<body>
+  <div style="
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;">
+  
+  <h1>Spot It! Online</h1>
+  <p>Enter your username to join the game. Waiting for <span id="waiting-count">{{ expected_players - current_players }}</span> more players.</p>
+  <p style="display: none;">Total expected players: <span id="expected-players">{{ expected_players }}</span></p>
+  
+  <button class="swal2-button" onclick="promptUsername()" style="padding: 12px 20px;">Join Game</button>
+
+</div>
+
+</body>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</html>
