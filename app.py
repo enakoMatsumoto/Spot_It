@@ -52,7 +52,8 @@ server_session_file = os.path.join(game_data_dir, 'server_session.json')
 
 def save_game_state(event_type="update"):
     """Save the current game state to the server session JSON file"""
-    # Create a new event entry
+    # Serialize current state for event history
+    serial_pile = {k: list(v) if hasattr(v, '__iter__') else v for k,v in cards_pile.items()} if cards_pile else None
     event = {
         "timestamp": datetime.now().isoformat(),
         "event_type": event_type,
@@ -61,23 +62,32 @@ def save_game_state(event_type="update"):
         "game_finished": game_finished,
         "winner": winner,
         "players": players.copy(),
-        "scores": spotit_game.scores.copy() if spotit_game and spotit_game.scores else None
+        "scores": spotit_game.scores.copy() if spotit_game and spotit_game.scores else None,
+        "cards": cards.copy() if cards else None,
+        "cards_pile": serial_pile,
+        "last_clicked_player_emoji": last_clicked_player_emoji,
+        "last_clicked_center_emoji": last_clicked_center_emoji
     }
     
     # Add the event to the history
     game_history.append(event)
     
-    # Create the full session data
+    # Build full session snapshot for failover
     session_data = {
         "server_start_time": game_history[0]["timestamp"] if game_history else datetime.now().isoformat(),
         "last_update_time": datetime.now().isoformat(),
         "expected_players": expected_players,
+        "player_sessions": player_sessions,
         "current_state": {
             "game_started": game_started,
             "game_finished": game_finished,
             "winner": winner,
             "players": players,
-            "scores": spotit_game.scores if spotit_game else None
+            "scores": spotit_game.scores if spotit_game else None,
+            "cards": cards.copy() if cards else None,
+            "cards_pile": {k: list(v) for k,v in cards_pile.items()} if cards_pile else None,
+            "last_clicked_player_emoji": last_clicked_player_emoji,
+            "last_clicked_center_emoji": last_clicked_center_emoji
         },
         "history": game_history
     }
