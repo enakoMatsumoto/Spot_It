@@ -1,6 +1,20 @@
+// Redirect to include session_id in URL if missing
+(function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (!urlParams.get('session_id')) {
+        const sid = sessionStorage.getItem('spotit_session_id');
+        if (sid) {
+            window.location.replace(window.location.pathname + '?session_id=' + sid);
+        }
+    }
+})();
+
 function arrangeEmojiForAll() {
-  arrangeEmoji('player-circle-container');
-  arrangeEmoji('center-circle-container');
+  // Only arrange if containers exist (avoid errors on login page)
+  const playerContainer = document.getElementById('player-circle-container');
+  const centerContainer = document.getElementById('center-circle-container');
+  if (playerContainer) arrangeEmoji('player-circle-container');
+  if (centerContainer) arrangeEmoji('center-circle-container');
 }
 
 function arrangeEmoji(containerId) {
@@ -120,8 +134,12 @@ function emojiClicked(emoji, isPlayer) {
       if (data && data.clear_highlight) {
         clearHighlights();
       }
-      if (data && data.names && data.scores) { // update scoreboard
-        updateScoreboard(data.names, data.scores)
+      if (data && data.names && data.scores) { // update scoreboard (preserve highlight)
+        if (typeof updateScoreboardWithHighlight === 'function') {
+          updateScoreboardWithHighlight(data.names, data.scores);
+        } else {
+          updateScoreboard(data.names, data.scores);
+        }
       }
     });
 }
@@ -210,8 +228,8 @@ function promptUsername() {
     if (result.isConfirmed) {
       const username = result.value;
       
-      // Store username in localStorage for persistence
-      localStorage.setItem('spotit_username', username);
+      // Store username in sessionStorage for this tab
+      sessionStorage.setItem('spotit_username', username);
       
       // Send username to server
       fetchWithSession('/set_username', {
@@ -224,14 +242,14 @@ function promptUsername() {
       .then(response => response.json())
       .then(data => {
         if (data.success) {
-          // Store session info in localStorage
+          // Store session info in sessionStorage for this tab
           if (data.session_id) {
-            localStorage.setItem('spotit_session_id', data.session_id);
+            sessionStorage.setItem('spotit_session_id', data.session_id);
             console.log('Stored session ID:', data.session_id);
           }
           
           if (data.username) {
-            localStorage.setItem('spotit_username', data.username);
+            sessionStorage.setItem('spotit_username', data.username);
             console.log('Stored username:', data.username);
           }
           
@@ -320,8 +338,8 @@ function pollGameStatus() {
       });
   }, 2000);
   
-  // Store the interval ID in localStorage so it persists across page refreshes
-  localStorage.setItem('pollingIntervalId', interval);
+  // Store the interval ID in sessionStorage so it persists across page refreshes
+  sessionStorage.setItem('pollingIntervalId', interval);
   
   return interval;
 }
@@ -330,12 +348,9 @@ function pollGameStatus() {
 document.addEventListener('DOMContentLoaded', function() {
   // If we're on the login page
   if (document.getElementById('waiting-count')) {
-    // Check if we already have a stored username
-    const storedUsername = localStorage.getItem('spotit_username');
-    const storedSessionId = localStorage.getItem('spotit_session_id');
-    
-    console.log('Stored username:', storedUsername);
-    console.log('Stored session ID:', storedSessionId);
+    // Clear any stale sessionStorage data on login page
+    sessionStorage.removeItem('spotit_username');
+    sessionStorage.removeItem('spotit_session_id');
     
     // If we have URL parameters, check game status immediately
     const urlParams = new URLSearchParams(window.location.search);
@@ -353,16 +368,35 @@ document.addEventListener('DOMContentLoaded', function() {
     // Start polling for game status automatically
     pollGameStatus();
   }
+  
+  // Real-time polling: update cards and scores for all clients
+  if (document.getElementById('player-circle-container')) {
+    setInterval(() => {
+      fetchWithSession('/game_state')
+        .then(response => response.json())
+        .then(data => {
+          // Refresh emojis and scoreboard
+          updateCard(data.center_emojis, data.player_emojis);
+          updateScoreboard(data.names, data.scores);
+        })
+        .catch(error => console.error('Polling error:', error));
+    }, 1000);
+  }
 });
 
-// Add event handlers for all fetch calls to include credentials
+// Add event handlers for all fetch calls to include credentials and custom session id header for multi-client support
 function fetchWithSession(url, options = {}) {
-  // Always include credentials
+  // Always include credentials and custom session id header for multi-client support
+  const sessionId = sessionStorage.getItem('spotit_session_id');
+  const headers = options.headers ? {...options.headers} : {};
+  if (sessionId) {
+    headers['X-Session-Id'] = sessionId;
+  }
   const sessionOptions = {
     ...options,
-    credentials: 'include'
+    credentials: 'include',
+    headers: headers
   };
-  
   return fetch(url, sessionOptions);
 }
 

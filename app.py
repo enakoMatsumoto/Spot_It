@@ -113,6 +113,10 @@ def new_game_state():
     return cards, cards_pile, scores
 
 def get_player_center_emojis(player_id):
+    global spotit_game, cards, cards_pile, scores
+    # Ensure game state is initialized before accessing
+    if spotit_game is None:
+        cards, cards_pile, scores = new_game_state()
     """Get the current player and center emojis from the game state"""
     state = spotit_game.get_player_center_emojis(player_id)
     player_emojis = state['player']
@@ -143,19 +147,27 @@ def update_cards(player_id):
     return player_emojis, center_emojis
 
 def get_player_id_from_session():
-    """Get the player ID based on the current session"""
-    if 'username' in session and session['username'] in players:
-        username = session['username']
+    """Get the player ID based on header, URL param, or cookie"""
+    # Identify via header or URL param first
+    sid = request.headers.get('X-Session-Id') or request.args.get('session_id')
+    print(f"DEBUG get_player_id_from_session: sid={sid}")
+    if sid and sid in player_sessions:
+        username = player_sessions[sid]
+        print(f"DEBUG get_player_id_from_session: username={username}")
         return list(players.keys()).index(username)
-    return 0  # Default to first player if session not found
-
-def get_unique_session_id():
-    """Generate a unique session ID"""
-    return str(uuid.uuid4())
+    # Fallback to Flask cookie session
+    username = session.get('username')
+    print(f"DEBUG get_player_id_from_session: fallback cookie username={username}")
+    if username and username in players:
+        return list(players.keys()).index(username)
+    # Default to first player
+    return 0
 
 @app.route('/')
 def login():
     """Render the login page with waiting room information"""
+    # Clear any existing Flask session cookies on login revisit
+    session.clear()
     global players, expected_players
     
     # Debug session info
@@ -176,9 +188,10 @@ def check_game_status():
     
     # If the game has already started, redirect any waiting players to the game
     if game_started:
+        sid = request.headers.get('X-Session-Id')
         return jsonify({
             "game_ready": True,
-            "redirect": url_for('spot_it_game')
+            "redirect": url_for('spot_it_game', session_id=sid)
         })
     
     # If all players have joined but game hasn't officially started yet
@@ -193,9 +206,10 @@ def check_game_status():
         # Save game state
         save_game_state(event_type="all_players_joined")
         
+        sid = request.headers.get('X-Session-Id')
         return jsonify({
             "game_ready": True,
-            "redirect": url_for('spot_it_game')
+            "redirect": url_for('spot_it_game', session_id=sid)
         })
     else:
         # Still waiting for players
@@ -208,23 +222,29 @@ def check_game_status():
 @app.route('/spot_it_game')
 def spot_it_game():
     """Initialize the game and render the game page"""
+    # Ensure session_id in URL or cookie; redirect to include param
+    sid = request.args.get('session_id')
+    if not sid:
+        sid = session.get('session_id')
+        if sid:
+            return redirect(url_for('spot_it_game', session_id=sid))
+        return redirect(url_for('login'))
+    # Rehydrate server-side session for page navigations
+    if sid in player_sessions:
+        session['session_id'] = sid
+        session['username'] = player_sessions[sid]
     global cards, cards_pile, scores, game_started, spotit_game
     
     # Only allow access if the game has started
     if not game_started:
         return redirect(url_for('login'))
     
-    # Check if this is the first player to access the game
+    # Initialize game state on first access
     if spotit_game is None:
-        # Initialize the game state
         cards, cards_pile, scores = new_game_state()
     
-    # Get the player ID based on the session
+    # Determine player_id for this request
     player_id = get_player_id_from_session()
-    
-    # If the player isn't in the session yet, redirect to login
-    if 'username' not in session or session['username'] not in players:
-        return redirect(url_for('login', check_game_status='true'))
     
     # Get the emojis for this specific player
     player_emojis, center_emojis = get_player_center_emojis(player_id)
@@ -235,7 +255,7 @@ def spot_it_game():
                            names=list(players.keys()),
                            scores=spotit_game.scores,
                            player_id=player_id,
-                           player_name=session.get('username', 'Unknown'))
+                           player_name=player_sessions[request.headers.get('X-Session-Id') or request.args.get('session_id')])
 
 @app.route('/set_username', methods=['POST'])
 def set_username():
@@ -287,9 +307,10 @@ def set_username():
             # Save game state
             save_game_state(event_type="all_players_joined")
             
+            # Redirect with session_id query param to keep client-specific state
             return jsonify({
                 "success": True,
-                "redirect": url_for('spot_it_game'),
+                "redirect": url_for('spot_it_game', session_id=session_id),
                 "session_id": session_id,
                 "username": username
             })
@@ -313,10 +334,10 @@ def set_username():
 def clicked_player():
     """Handle when a player clicks on their own card"""
     global last_clicked_player_emoji, last_clicked_center_emoji
-    
+    print(f"DEBUG clicked_player: headers={dict(request.headers)}, cookie_session={dict(session)}")
     # Get the player ID based on the session
     player_id = get_player_id_from_session()
-    
+    print(f"DEBUG clicked_player: resolved player_id={player_id}")
     data = request.get_json()
     last_clicked_player_emoji = data.get('emoji')
     if last_clicked_player_emoji == last_clicked_center_emoji: 
@@ -360,10 +381,10 @@ def clicked_player():
 def clicked_center():
     """Handle when a player clicks on the center card"""
     global last_clicked_player_emoji, last_clicked_center_emoji
-    
+    print(f"DEBUG clicked_center: headers={dict(request.headers)}, cookie_session={dict(session)}")
     # Get the player ID based on the session
     player_id = get_player_id_from_session()
-    
+    print(f"DEBUG clicked_center: resolved player_id={player_id}")
     data = request.get_json()
     last_clicked_center_emoji = data.get('emoji')
     if last_clicked_player_emoji == last_clicked_center_emoji: 
@@ -467,8 +488,20 @@ def player_status():
         "game_started": game_started,
         "game_finished": game_finished,
         "winner": winner,
-        "current_player": session.get('username'),
-        "session_id": session.get('session_id')
+        "current_player": player_sessions[request.headers.get('X-Session-Id') or request.args.get('session_id')],
+        "session_id": request.headers.get('X-Session-Id') or request.args.get('session_id')
+    })
+
+@app.route('/game_state')
+def game_state():
+    """Return current cards and scores for this player"""
+    player_id = get_player_id_from_session()
+    player_emojis, center_emojis = get_player_center_emojis(player_id)
+    return jsonify({
+        'player_emojis': player_emojis,
+        'center_emojis': center_emojis,
+        'names': list(players.keys()),
+        'scores': spotit_game.scores
     })
 
 @app.route('/game_history')
