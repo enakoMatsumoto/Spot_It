@@ -9,6 +9,34 @@
     }
 })();
 
+// Track which emoji is selected so highlight persists
+let selectedPlayerEmoji = null;
+let selectedCenterEmoji = null;
+
+// Track last fetched emojis to avoid unnecessary re-renders
+let lastPlayerData = null;
+let lastCenterData = null;
+
+/** Re-apply persisted highlights after re-render */
+function applyHighlights() {
+  if (selectedPlayerEmoji) {
+    document.getElementById('player-circle-container')
+      .querySelectorAll('.emoji').forEach(el => {
+        if (el.textContent.trim() === selectedPlayerEmoji) {
+          el.classList.add('highlighted');
+        }
+      });
+  }
+  if (selectedCenterEmoji) {
+    document.getElementById('center-circle-container')
+      .querySelectorAll('.emoji').forEach(el => {
+        if (el.textContent.trim() === selectedCenterEmoji) {
+          el.classList.add('highlighted');
+        }
+      });
+  }
+}
+
 function arrangeEmojiForAll() {
   // Only arrange if containers exist (avoid errors on login page)
   const playerContainer = document.getElementById('player-circle-container');
@@ -87,19 +115,41 @@ function updateCard(newCenterEmojis, newPlayerEmojis) {
 
   // Re-arrange after adding
   arrangeEmojiForAll();
+  // Re-apply persisted highlights
+  applyHighlights();
 }
 
 function clearHighlights() {
-  document.querySelectorAll('.emoji.highlighted').forEach(el => {
-    el.classList.remove('highlighted');
-  });
+  document.querySelectorAll('.emoji.highlighted').forEach(el => el.classList.remove('highlighted'));
 }
 
 function highlightEmoji(containerId, emojiChar) {
-  document.getElementById(containerId).querySelectorAll('.emoji').forEach(el => {
-    if (el.textContent.trim() === emojiChar) {
-      el.classList.add('highlighted');
+  const container = document.getElementById(containerId);
+  // Only one selected per container; deselect if same clicked
+  if (containerId === 'player-circle-container') {
+    if (selectedPlayerEmoji === emojiChar) {
+      selectedPlayerEmoji = null;
+      container.querySelectorAll('.emoji.highlighted').forEach(el => el.classList.remove('highlighted'));
+      return;
     }
+    // New player selection: clear both containers
+    selectedPlayerEmoji = emojiChar;
+    selectedCenterEmoji = null;
+  } else {
+    if (selectedCenterEmoji === emojiChar) {
+      selectedCenterEmoji = null;
+      container.querySelectorAll('.emoji.highlighted').forEach(el => el.classList.remove('highlighted'));
+      return;
+    }
+    // New center selection
+    selectedCenterEmoji = emojiChar;
+    selectedPlayerEmoji = null;
+  }
+  // Clear all previous highlights
+  clearHighlights();
+  // Highlight the newly selected emoji
+  container.querySelectorAll('.emoji').forEach(el => {
+    if (el.textContent.trim() === emojiChar) el.classList.add('highlighted');
   });
 }
 
@@ -127,12 +177,15 @@ function emojiClicked(emoji, isPlayer) {
       if (data && data.center_emojis && data.player_emojis) {
         updateCard(data.center_emojis, data.player_emojis);
       }
-      if (data && data.highlight) {
-        clearHighlights();
-        highlightEmoji(containerId, data.highlight);
-      }
+      // Handle highlight toggle and clear
       if (data && data.clear_highlight) {
+        // clear on new card or shuffle
+        selectedPlayerEmoji = null;
+        selectedCenterEmoji = null;
         clearHighlights();
+      }
+      if (data && data.highlight) {
+        highlightEmoji(containerId, data.highlight);
       }
       if (data && data.names && data.scores) { // update scoreboard (preserve highlight)
         if (typeof updateScoreboardWithHighlight === 'function') {
@@ -159,13 +212,13 @@ function shuffle() {
           scrollbarPadding: false
         });
       }
-      else if (data && data.center_emojis && data.player_emojis && data.clear_highlight) {
-        Swal.fire({
-          title: "Shuffled",
-          icon: "success",
-          scrollbarPadding: false
-        });
-        clearHighlights();
+      else if (data && data.center_emojis && data.player_emojis) {
+        Swal.fire({ title: "Shuffled", icon: "success", scrollbarPadding: false });
+        if (data.clear_highlight) {
+          selectedPlayerEmoji = null;
+          selectedCenterEmoji = null;
+          clearHighlights();
+        }
         updateCard(data.center_emojis, data.player_emojis);
       }
     });
@@ -375,8 +428,17 @@ document.addEventListener('DOMContentLoaded', function() {
       fetchWithSession('/game_state')
         .then(response => response.json())
         .then(data => {
-          // Refresh emojis and scoreboard
-          updateCard(data.center_emojis, data.player_emojis);
+          const playerJson = JSON.stringify(data.player_emojis);
+          const centerJson = JSON.stringify(data.center_emojis);
+          if (playerJson !== lastPlayerData || centerJson !== lastCenterData) {
+            // Clear highlights on new card state
+            selectedPlayerEmoji = null;
+            selectedCenterEmoji = null;
+            clearHighlights();
+            updateCard(data.center_emojis, data.player_emojis);
+            lastPlayerData = playerJson;
+            lastCenterData = centerJson;
+          }
           updateScoreboard(data.names, data.scores);
         })
         .catch(error => console.error('Polling error:', error));

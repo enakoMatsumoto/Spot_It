@@ -41,10 +41,15 @@ body {
 }
 
 .emoji.highlighted {
+  transition: all 0.3s ease;
+}
+
+#player-circle-container .emoji.highlighted,
+#center-circle-container .emoji.highlighted {
+  /* persistent yellow highlight */
   box-shadow: 0 0 10px 10px gold;
   border-radius: 50%;
   background-color: rgba(255, 223, 0, 0.3);
-  transition: all 0.3s ease;
 }
 
 .swal2-button {
@@ -69,4 +74,12 @@ body {
 
 .swal2-button:hover {
   background-color: #256bb5;
+}
+
+/* Remove blue highlight on scoreboard headers */
+th, td {
+  outline: none;
+  box-shadow: none !important;
+  background: transparent !important;
+  color: inherit;
 }
