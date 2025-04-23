@@ -93,17 +93,17 @@ class SpotItGame:
         # Return updated emojis
         return self.get_player_center_emojis(player_id)['player'], self.get_player_center_emojis(player_id)['center']
 
-    def play_turn(self, player_id, player_emoji, center_emoji):
-        # Implements Spot It game logic for a speed-based turn (no turn order)
-        player_card = self.cards_pile[player_id][-1]  # most recent card
-        center_card = self.cards_pile['center'][0] if self.cards_pile['center'] else None
-        if not center_card:
-            return False, "No more cards in center.", None, None
-        player_emojis = set(e['emoji'] for e in player_card)
-        center_emojis = set(e['emoji'] for e in center_card)
-        if player_emoji == center_emoji and player_emoji in player_emojis and player_emoji in center_emojis:
-            self.scores[player_id] += 1
-            player_emojis, center_emojis = self.update_cards(player_id)
-            return True, f"You found a match {player_emoji}!", player_emojis, center_emojis
-        else:
-            return False, f"{player_emoji} and {center_emoji} is not a match!", None, None
+    # def play_turn(self, player_id, player_emoji, center_emoji):
+    #     # Implements Spot It game logic for a speed-based turn (no turn order)
+    #     player_card = self.cards_pile[player_id][-1]  # most recent card
+    #     center_card = self.cards_pile['center'][0] if self.cards_pile['center'] else None
+    #     if not center_card:
+    #         return False, "No more cards in center.", None, None
+    #     player_emojis = set(e['emoji'] for e in player_card)
+    #     center_emojis = set(e['emoji'] for e in center_card)
+    #     if player_emoji == center_emoji and player_emoji in player_emojis and player_emoji in center_emojis:
+    #         self.scores[player_id] += 1
+    #         player_emojis, center_emojis = self.update_cards(player_id)
+    #         return True, f"You found a match {player_emoji}!", player_emojis, center_emojis
+    #     else:
+    #         return False, f"{player_emoji} and {center_emoji} is not a match!", None, None

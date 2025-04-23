@@ -11,6 +11,12 @@ import time
 import uuid
 from datetime import datetime
 import threading
+import chat_pb2
+import chat_pb2_grpc
+import grpc
+from apscheduler.schedulers.background import BackgroundScheduler
+from server import ports
+import sys
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)  # Secret key for session management
@@ -18,13 +24,16 @@ app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour session lifetime
 
-# Command line argument for number of players
-parser = argparse.ArgumentParser(description='Spot It Game Server')
-parser.add_argument('--players', type=int, default=3, help='Number of players expected to join')
-args = parser.parse_args()
+CLIENT_VERSION = "1.0.0"
+SERVER_HOST = ""
+SERVER_PORT = ""
+stub = None
+all_host_port_pairs = []
+
+scheduler = BackgroundScheduler()
 
 # Game state variables
-expected_players = args.players
+expected_players = None
 restart_votes = set()  # track session_ids that agreed to restart
 restart_requesters = set()  # track usernames who requested restart
 restart_initiator = None  # track who first requested the restart
@@ -48,14 +57,66 @@ player_sessions = {}  # Map session IDs to usernames
 # Game history tracking
 game_history = []
 
-# Ensure the game_data directory exists
-game_data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'game_data')
-if not os.path.exists(game_data_dir):
-    os.makedirs(game_data_dir)
-    print(f"Created game data directory at: {game_data_dir}")
+def connect_to_leader():
+    global SERVER_HOST, SERVER_PORT, stub, subscription_thread, subscription_call, subscription_active
+    print('checking leader')
+    noleader = True
+    for server in all_host_port_pairs:
+        try:
+            temp_channel = grpc.insecure_channel(server)
+            temp_stub = chat_pb2_grpc.ChatServiceStub(temp_channel)
+            response = temp_stub.GetLeaderInfo(chat_pb2.GetLeaderInfoRequest())
+            leader_host, leader_port = response.info.split(':')
+            noleader = False
 
-# Path to the server session JSON file
-server_session_file = os.path.join(game_data_dir, 'server_session.json')
+            # update leader if necessary
+            if SERVER_HOST != leader_host or SERVER_PORT != leader_port:
+                SERVER_HOST = leader_host
+                SERVER_PORT = leader_port
+                print('NEW LEADER:', SERVER_HOST, SERVER_PORT)
+                channel = grpc.insecure_channel(f"{SERVER_HOST}:{SERVER_PORT}")
+                stub = chat_pb2_grpc.ChatServiceStub(channel)
+                # stub.LoadActiveUsersAndSubscribersFromPersistent(chat_pb2.Empty()) # TODO NEED TO MAKE SOMETHING LIKE THIS TO RETRIEVE FROM PERSISTENT
+            break
+        except:
+            print(f"Failed to connect to {server}")
+            continue  # Try next server
+    
+    return noleader
+
+def start_connect_to_leader_scheduler():
+    if connect_to_leader():
+        print("No leader found. Exiting application.")
+        sys.exit(1)
+
+    # Add periodic leader check
+    scheduler.add_job(func=connect_to_leader, trigger="interval", seconds=5)
+    scheduler.start()
+
+# def check_version_number(): # TODO NEED TO ADD
+#     """
+#         Checks that version number matches between client and server
+
+#         Params:
+
+#             None 
+
+#         Returns:
+
+#             True or None: True if success, None if error
+#     """
+#     # Check connection
+#     try: 
+#        response = stub.CheckVersion(chat_pb2.Version(version=CLIENT_VERSION))
+#        if not response.success:
+#            print(f"Error: {response.message}") 
+#            return None
+       
+#        print(f"Successfully connected to server at {SERVER_HOST}:{SERVER_PORT} {response.message}")
+#        return True
+#     except grpc.RpcError as e:
+#         print(f"Error: {e.details()}")
+#         return None
 
 def save_game_state(event_type="update", extra_data=None):
     """Save the current game state to the server session JSON file"""
@@ -70,7 +131,6 @@ def save_game_state(event_type="update", extra_data=None):
         "winner": winner,
         "players": players.copy(),
         "scores": spotit_game.scores.copy() if spotit_game and spotit_game.scores else None,
-        "cards": cards.copy() if cards else None,
         "cards_pile": serial_pile,
         "last_clicked_player_emoji": last_clicked_player_emoji,
         "last_clicked_center_emoji": last_clicked_center_emoji
@@ -94,21 +154,18 @@ def save_game_state(event_type="update", extra_data=None):
             "winner": winner,
             "players": players,
             "scores": spotit_game.scores if spotit_game else None,
-            "cards": cards.copy() if cards else None,
             "cards_pile": {k: list(v) for k,v in cards_pile.items()} if cards_pile else None,
             "last_clicked_player_emoji": last_clicked_player_emoji,
             "last_clicked_center_emoji": last_clicked_center_emoji
         },
-        "history": game_history
     }
-    
-    # Save to the server session file
-    with open(server_session_file, 'w') as f:
-        json.dump(session_data, f, indent=4)
-    
-    print(f"Game state saved to: {server_session_file}")
-    
-    return server_session_file
+
+    response = stub.SaveGameState(chat_pb2.SaveGameStateRequest(session_data_json = json.dumps(session_data)))
+    if response.success:
+        print(response.success, 'saved game state')
+    else:
+        print(response.success, 'failed to save game state')
+
 
 def new_game_state():
     """Initialize a new game state with cards, card piles, and scores"""
@@ -821,10 +878,18 @@ def clear_session():
     return redirect(url_for('login'))
 
 if __name__ == '__main__':
+    # Command line argument for number of players
+    parser = argparse.ArgumentParser(description='Spot It Game Server')
+    parser.add_argument('--players', type=int, default=3, help='Number of players expected to join')
+    parser.add_argument("--all_ips", type=str, required=True,
+                        help="Comma-separated list of external IP addresses for all servers (order: server1,server2,server3)")
+    args = parser.parse_args()
+    all_ips = args.all_ips.split(",")
+    all_host_port_pairs = [f"{all_ips[i]}:{ports[i+1]}" for i in range(len(all_ips))]
+    expected_players = args.players
     print(f"Starting Spot It game server with {expected_players} expected players")
-    print(f"Game data will be saved to: {server_session_file}")
-    
+
+    start_connect_to_leader_scheduler()
     # Initialize the first game state entry
     save_game_state(event_type="server_start")
-    
     app.run(debug=True, host='0.0.0.0', port=5001)

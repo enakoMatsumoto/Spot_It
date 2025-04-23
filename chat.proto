@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+service ChatService {
+  rpc GetLeaderInfo (GetLeaderInfoRequest) returns (GetLeaderInfoResponse);
+  rpc SaveGameState (SaveGameStateRequest) returns (SaveGameStateResponse);
+}
+
+service ReplicationService {
+  rpc ReplicateSaveGameState (ReplicateSaveGameStateRequest) returns (ReplicateSaveGameStateResponse);
+
+}
+
+service Health {
+  rpc Ping(PingRequest) returns (PingResponse);
+}
+
+message GetLeaderInfoRequest {}
+
+message GetLeaderInfoResponse {
+  string info = 1;
+}
+
+message SaveGameStateRequest {
+  string session_data_json = 1;
+}
+
+message SaveGameStateResponse {
+  bool success = 1;
+}
+
+message ReplicateSaveGameStateRequest{
+  string session_data_json = 1;
+}
+
+message ReplicateSaveGameStateResponse {
+  bool success = 1;
+}
+
+message PingRequest {}
+
+message PingResponse {
+  bool alive = 1;
+}
