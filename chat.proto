@@ -3,6 +3,7 @@ syntax = "proto3";
 service ChatService {
   rpc GetLeaderInfo (GetLeaderInfoRequest) returns (GetLeaderInfoResponse);
   rpc SaveGameState (SaveGameStateRequest) returns (SaveGameStateResponse);
+  rpc CheckVersion(Version) returns (VersionResponse);
 }
 
 service ReplicationService {
@@ -26,6 +27,17 @@ message SaveGameStateRequest {
 
 message SaveGameStateResponse {
   bool success = 1;
+}
+
+message Empty {}
+
+message Version {
+  string version = 1;
+}
+
+message VersionResponse {
+  bool success = 1;
+  string message = 2;
 }
 
 message ReplicateSaveGameStateRequest{

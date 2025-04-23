@@ -14,7 +14,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nchat.proto\"\x16\n\x14GetLeaderInfoRequest\"%\n\x15GetLeaderInfoResponse\x12\x0c\n\x04info\x18\x01 \x01(\t\"1\n\x14SaveGameStateRequest\x12\x19\n\x11session_data_json\x18\x01 \x01(\t\"(\n\x15SaveGameStateResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\":\n\x1dReplicateSaveGameStateRequest\x12\x19\n\x11session_data_json\x18\x01 \x01(\t\"1\n\x1eReplicateSaveGameStateResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\r\n\x0bPingRequest\"\x1d\n\x0cPingResponse\x12\r\n\x05\x61live\x18\x01 \x01(\x08\x32\x8d\x01\n\x0b\x43hatService\x12>\n\rGetLeaderInfo\x12\x15.GetLeaderInfoRequest\x1a\x16.GetLeaderInfoResponse\x12>\n\rSaveGameState\x12\x15.SaveGameStateRequest\x1a\x16.SaveGameStateResponse2o\n\x12ReplicationService\x12Y\n\x16ReplicateSaveGameState\x12\x1e.ReplicateSaveGameStateRequest\x1a\x1f.ReplicateSaveGameStateResponse2-\n\x06Health\x12#\n\x04Ping\x12\x0c.PingRequest\x1a\r.PingResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\nchat.proto\"\x16\n\x14GetLeaderInfoRequest\"%\n\x15GetLeaderInfoResponse\x12\x0c\n\x04info\x18\x01 \x01(\t\"1\n\x14SaveGameStateRequest\x12\x19\n\x11session_data_json\x18\x01 \x01(\t\"(\n\x15SaveGameStateResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\x07\n\x05\x45mpty\"\x1a\n\x07Version\x12\x0f\n\x07version\x18\x01 \x01(\t\"3\n\x0fVersionResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\":\n\x1dReplicateSaveGameStateRequest\x12\x19\n\x11session_data_json\x18\x01 \x01(\t\"1\n\x1eReplicateSaveGameStateResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\"\r\n\x0bPingRequest\"\x1d\n\x0cPingResponse\x12\r\n\x05\x61live\x18\x01 \x01(\x08\x32\xb9\x01\n\x0b\x43hatService\x12>\n\rGetLeaderInfo\x12\x15.GetLeaderInfoRequest\x1a\x16.GetLeaderInfoResponse\x12>\n\rSaveGameState\x12\x15.SaveGameStateRequest\x1a\x16.SaveGameStateResponse\x12*\n\x0c\x43heckVersion\x12\x08.Version\x1a\x10.VersionResponse2o\n\x12ReplicationService\x12Y\n\x16ReplicateSaveGameState\x12\x1e.ReplicateSaveGameStateRequest\x1a\x1f.ReplicateSaveGameStateResponse2-\n\x06Health\x12#\n\x04Ping\x12\x0c.PingRequest\x1a\r.PingResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -29,18 +29,24 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_SAVEGAMESTATEREQUEST']._serialized_end=126
   _globals['_SAVEGAMESTATERESPONSE']._serialized_start=128
   _globals['_SAVEGAMESTATERESPONSE']._serialized_end=168
-  _globals['_REPLICATESAVEGAMESTATEREQUEST']._serialized_start=170
-  _globals['_REPLICATESAVEGAMESTATEREQUEST']._serialized_end=228
-  _globals['_REPLICATESAVEGAMESTATERESPONSE']._serialized_start=230
-  _globals['_REPLICATESAVEGAMESTATERESPONSE']._serialized_end=279
-  _globals['_PINGREQUEST']._serialized_start=281
-  _globals['_PINGREQUEST']._serialized_end=294
-  _globals['_PINGRESPONSE']._serialized_start=296
-  _globals['_PINGRESPONSE']._serialized_end=325
-  _globals['_CHATSERVICE']._serialized_start=328
-  _globals['_CHATSERVICE']._serialized_end=469
-  _globals['_REPLICATIONSERVICE']._serialized_start=471
-  _globals['_REPLICATIONSERVICE']._serialized_end=582
-  _globals['_HEALTH']._serialized_start=584
-  _globals['_HEALTH']._serialized_end=629
+  _globals['_EMPTY']._serialized_start=170
+  _globals['_EMPTY']._serialized_end=177
+  _globals['_VERSION']._serialized_start=179
+  _globals['_VERSION']._serialized_end=205
+  _globals['_VERSIONRESPONSE']._serialized_start=207
+  _globals['_VERSIONRESPONSE']._serialized_end=258
+  _globals['_REPLICATESAVEGAMESTATEREQUEST']._serialized_start=260
+  _globals['_REPLICATESAVEGAMESTATEREQUEST']._serialized_end=318
+  _globals['_REPLICATESAVEGAMESTATERESPONSE']._serialized_start=320
+  _globals['_REPLICATESAVEGAMESTATERESPONSE']._serialized_end=369
+  _globals['_PINGREQUEST']._serialized_start=371
+  _globals['_PINGREQUEST']._serialized_end=384
+  _globals['_PINGRESPONSE']._serialized_start=386
+  _globals['_PINGRESPONSE']._serialized_end=415
+  _globals['_CHATSERVICE']._serialized_start=418
+  _globals['_CHATSERVICE']._serialized_end=603
+  _globals['_REPLICATIONSERVICE']._serialized_start=605
+  _globals['_REPLICATIONSERVICE']._serialized_end=716
+  _globals['_HEALTH']._serialized_start=718
+  _globals['_HEALTH']._serialized_end=763
 # @@protoc_insertion_point(module_scope)

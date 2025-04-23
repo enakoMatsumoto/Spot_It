@@ -176,13 +176,13 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
     #         self.load_from_persistent = False
     #     return chat_pb2.Empty()
 
-    # def CheckVersion(self, request, context):
-    #     if request.version != SERVER_VERSION:
-    #         return chat_pb2.VersionResponse(
-    #             success=False, 
-    #             message=f"Version mismatch. Server: {SERVER_VERSION}, Client: {request.version}"
-    #         )
-    #     return chat_pb2.VersionResponse(success=True, message="success: Version matched")
+    def CheckVersion(self, request, context):
+        if request.version != SERVER_VERSION:
+            return chat_pb2.VersionResponse(
+                success=False, 
+                message=f"Version mismatch. Server: {SERVER_VERSION}, Client: {request.version}"
+            )
+        return chat_pb2.VersionResponse(success=True, message="success: Version matched")
     
 # -------------------------
 # ReplicationService: Followers use this to replicate messages.

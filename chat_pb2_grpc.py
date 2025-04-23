@@ -24,6 +24,11 @@ class ChatServiceStub(object):
                 request_serializer=chat__pb2.SaveGameStateRequest.SerializeToString,
                 response_deserializer=chat__pb2.SaveGameStateResponse.FromString,
                 )
+        self.CheckVersion = channel.unary_unary(
+                '/ChatService/CheckVersion',
+                request_serializer=chat__pb2.Version.SerializeToString,
+                response_deserializer=chat__pb2.VersionResponse.FromString,
+                )
 
 
 class ChatServiceServicer(object):
@@ -41,6 +46,12 @@ class ChatServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CheckVersion(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_ChatServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -53,6 +64,11 @@ def add_ChatServiceServicer_to_server(servicer, server):
                     servicer.SaveGameState,
                     request_deserializer=chat__pb2.SaveGameStateRequest.FromString,
                     response_serializer=chat__pb2.SaveGameStateResponse.SerializeToString,
+            ),
+            'CheckVersion': grpc.unary_unary_rpc_method_handler(
+                    servicer.CheckVersion,
+                    request_deserializer=chat__pb2.Version.FromString,
+                    response_serializer=chat__pb2.VersionResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -95,6 +111,23 @@ class ChatService(object):
         return grpc.experimental.unary_unary(request, target, '/ChatService/SaveGameState',
             chat__pb2.SaveGameStateRequest.SerializeToString,
             chat__pb2.SaveGameStateResponse.FromString,
+            options, channel_credentials,
+            insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
+
+    @staticmethod
+    def CheckVersion(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(request, target, '/ChatService/CheckVersion',
+            chat__pb2.Version.SerializeToString,
+            chat__pb2.VersionResponse.FromString,
             options, channel_credentials,
             insecure, call_credentials, compression, wait_for_ready, timeout, metadata)
 

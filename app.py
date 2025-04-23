@@ -93,30 +93,30 @@ def start_connect_to_leader_scheduler():
     scheduler.add_job(func=connect_to_leader, trigger="interval", seconds=5)
     scheduler.start()
 
-# def check_version_number(): # TODO NEED TO ADD
-#     """
-#         Checks that version number matches between client and server
+def check_version_number():
+    """
+        Checks that version number matches between client and server
 
-#         Params:
+        Params:
 
-#             None 
+            None 
 
-#         Returns:
+        Returns:
 
-#             True or None: True if success, None if error
-#     """
-#     # Check connection
-#     try: 
-#        response = stub.CheckVersion(chat_pb2.Version(version=CLIENT_VERSION))
-#        if not response.success:
-#            print(f"Error: {response.message}") 
-#            return None
+            True or None: True if success, None if error
+    """
+    # Check connection
+    try: 
+       response = stub.CheckVersion(chat_pb2.Version(version=CLIENT_VERSION))
+       if not response.success:
+           print(f"Error: {response.message}") 
+           return None
        
-#        print(f"Successfully connected to server at {SERVER_HOST}:{SERVER_PORT} {response.message}")
-#        return True
-#     except grpc.RpcError as e:
-#         print(f"Error: {e.details()}")
-#         return None
+       print(f"Successfully connected to server at {SERVER_HOST}:{SERVER_PORT} {response.message}")
+       return True
+    except grpc.RpcError as e:
+        print(f"Error: {e.details()}")
+        return None
 
 def save_game_state(event_type="update", extra_data=None):
     """Save the current game state to the server session JSON file"""
@@ -890,6 +890,7 @@ if __name__ == '__main__':
     print(f"Starting Spot It game server with {expected_players} expected players")
 
     start_connect_to_leader_scheduler()
+    check_version_number()
     # Initialize the first game state entry
     save_game_state(event_type="server_start")
     app.run(debug=True, host='0.0.0.0', port=5001)
