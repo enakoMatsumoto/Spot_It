@@ -17,6 +17,8 @@ import grpc
 from apscheduler.schedulers.background import BackgroundScheduler
 from server import ports
 import sys
+import requests
+from flask import Response
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.urandom(24)  # Secret key for session management
@@ -29,6 +31,7 @@ SERVER_HOST = ""
 SERVER_PORT = ""
 stub = None
 all_host_port_pairs = []
+is_leader = False
 
 scheduler = BackgroundScheduler()
 
@@ -963,20 +966,347 @@ def clear_session():
     session.clear()
     return redirect(url_for('login'))
 
+
+### Leader Election and Frontend Replication
+@app.route('/healthz')
+def health_check():
+    """ Simple health check endpoint for leader election pings. """
+    return jsonify({"status": "ok"}), 200
+
+### Leader Election and Frontend Replication
+APP_ELECTION_INTERVAL = 5 # Check peer status every 5 seconds
+APP_PEER_TIMEOUT = 2 # Timeout for health check request
+
+# Global state for App Leader Election
+APP_ELECTION_STATE = "initializing" # States: initializing, backup, leader
+APP_LEADER_HOST = None # Host of the current leader app
+APP_LEADER_PORT = None # Port of the current leader app
+app_election_lock = threading.Lock()
+app_election_thread = None
+this_app_config = None # Will hold {id, host, port} for this instance
+all_app_configs = [] # Will hold list of {id, host, port} for all instances
+
+# --- App Leader Election Logic ---
+class AppLeaderElection:
+    def __init__(self, app_id, all_configs):
+        global this_app_config, all_app_configs
+        self.app_id = app_id
+        self.all_configs = all_configs # List of dicts: {'id': int, 'host': str, 'port': int}
+        self.state = "initializing"
+        self.leader_id = None
+        self.leader_host = None
+        self.leader_port = None
+
+        # Initialize peer status using app IDs as keys
+        self.peer_configs = [cfg for cfg in all_configs if cfg['id'] != self.app_id]
+        self.peer_status = {peer['id']: False for peer in self.peer_configs}
+        self.peer_ever_alive = {peer['id']: False for peer in self.peer_configs}
+        
+        # Store global refs
+        this_app_config = next((cfg for cfg in all_configs if cfg['id'] == self.app_id), None)
+        all_app_configs = all_configs
+
+    def ping_peer(self, host, port):
+        """ Pings another app instance's health endpoint using its host and port. """
+        peer_url = f"http://{host}:{port}/healthz"
+        try:
+            response = requests.get(peer_url, timeout=APP_PEER_TIMEOUT)
+            return response.status_code == 200
+        except requests.exceptions.RequestException as e:
+            # print(f"[App Election] Ping failed for {host}:{port}: {e}") 
+            return False
+
+    def elect(self):
+        """ Performs the leader election logic using hosts and ports. """
+        global APP_ELECTION_STATE, APP_LEADER_HOST, APP_LEADER_PORT
+        with app_election_lock: # Use the global lock
+            
+            # --- Update Peer Status --- 
+            for peer_cfg in self.peer_configs:
+                peer_id = peer_cfg['id']
+                is_alive = self.ping_peer(peer_cfg['host'], peer_cfg['port'])
+                # Track if peer was ever alive logic (same as before, using peer_id)
+                if is_alive and not self.peer_ever_alive.get(peer_id, False):
+                     self.peer_ever_alive[peer_id] = True
+                     self.peer_status[peer_id] = True
+                elif self.peer_ever_alive.get(peer_id, False) and not is_alive:
+                    if self.peer_status.get(peer_id, False):
+                         print(f"[App Election] Peer app {peer_id} on {peer_cfg['host']}:{peer_cfg['port']} seems down.")
+                    self.peer_status[peer_id] = False
+                elif not self.peer_ever_alive.get(peer_id, False) and not is_alive:
+                     self.peer_status[peer_id] = False
+                elif is_alive:
+                    # Peer is alive now, ensure status reflects this
+                    self.peer_status[peer_id] = True
+                # else: was dead, still dead - status remains False
+
+            # --- Determine Leader --- 
+            # Find the lowest app_id among self and live peers
+            alive_ids = [self.app_id] + [pid for pid, status in self.peer_status.items() if status]
+            
+            if not alive_ids:
+                # Should not happen ideally, but if it does, assume self is leader
+                current_leader_id = self.app_id
+                print("[App Election] Warning: No live apps detected including self? Defaulting to self as leader.")
+            else:
+                current_leader_id = min(alive_ids)
+
+            # Find the config of the leader
+            leader_config = next((cfg for cfg in self.all_configs if cfg['id'] == current_leader_id), None)
+
+            if leader_config is None:
+                 # This is problematic, means leader ID is invalid or config list is wrong
+                 print(f"[App Election] Error: Could not find config for determined leader ID: {current_leader_id}")
+                 # Fallback: Assume self is leader for safety?
+                 leader_config = this_app_config
+                 current_leader_id = self.app_id
+
+            # --- Update State --- 
+            new_state = "leader" if current_leader_id == self.app_id else "backup"
+            new_leader_host = leader_config['host']
+            new_leader_port = leader_config['port']
+            
+            # Update global state if changed
+            if APP_ELECTION_STATE != new_state or APP_LEADER_HOST != new_leader_host or APP_LEADER_PORT != new_leader_port:
+                print(f"[App Election] App {self.app_id}: State -> {new_state}, Leader -> ID {current_leader_id} at {new_leader_host}:{new_leader_port}")
+                APP_ELECTION_STATE = new_state
+                APP_LEADER_HOST = new_leader_host
+                APP_LEADER_PORT = new_leader_port
+
+    def run_election_loop(self):
+        """ Continuously runs the election process. """
+        while True:
+            self.elect()
+            time.sleep(APP_ELECTION_INTERVAL)
+
+# Function to start the election thread
+def start_app_election(app_id, all_configs):
+    global app_election_thread
+    election_manager = AppLeaderElection(app_id, all_configs)
+    app_election_thread = threading.Thread(target=election_manager.run_election_loop, daemon=True)
+    app_election_thread.start()
+    print(f"[App Election] Started election thread for App ID {app_id}")
+
+# --- Request Hook for Leader Check ---
+@app.before_request
+def check_app_leader_status():
+    """ Intercept requests and check if this instance is the leader. """
+    # Allow health check requests regardless of leader status
+    if request.path == '/healthz':
+        return
+
+    # Allow static files (CSS, JS) regardless of leader status
+    if request.path.startswith('/static/'):
+        return
+
+    with app_election_lock:
+        current_state = APP_ELECTION_STATE
+        leader_host = APP_LEADER_HOST
+        leader_port = APP_LEADER_PORT
+
+    if current_state == "backup":
+        leader_address = f"{leader_host}:{leader_port}" if leader_host and leader_port else "unknown"
+        # Provide a user-friendly message with auto-refresh
+        message = f"""
+        <html>
+            <head>
+                <title>Spot It - Backup Server</title>
+                <meta http-equiv='refresh' content='5'> 
+                <style>
+                    body {{ font-family: sans-serif; text-align: center; padding-top: 50px; }}
+                    .loader {{ border: 8px solid #f3f3f3; border-top: 8px solid #3498db; border-radius: 50%; width: 60px; height: 60px; animation: spin 2s linear infinite; margin: 20px auto; }}
+                    @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+                </style>
+            </head>
+            <body>
+                <h1>Spot It Game - Backup Instance</h1>
+                <p>This server instance is currently acting as a backup.</p>
+                <p>The active leader is believed to be at: <strong>{leader_address}</strong></p>
+                <p>Attempting to connect to leader or checking status again in 5 seconds...</p>
+                <div class="loader"></div>
+            </body>
+        </html>
+        """
+        # Return 503 Service Unavailable
+        # Use flask.Response to set the status code and content type correctly
+        return Response(message, status=503, mimetype='text/html')
+
+    # If leader or initializing (allow initializing to show initial pages maybe?), continue to the requested route
+    elif current_state == "leader":
+        pass # Proceed
+    else: # Initializing state
+        # Decide if initializing state should block or show a specific page
+        return Response("<html><body><h1>Initializing Leader Election...</h1><p>Please wait.</p></body></html>", status=200, mimetype='text/html')
+
+# --- gRPC Connection Management ---
+@scheduler.scheduled_job('interval', seconds=10, id='connect_job')
+def connect_to_leader_job():
+    """Scheduled job to check and connect to the backend leader."""
+    with app_election_lock:
+        am_leader = (APP_ELECTION_STATE == 'leader')
+    if not am_leader:
+        # print("[Connect Job] Not the app leader, skipping backend connection attempt.")
+        return # Only the leader app connects to the backend leader
+    connect_to_leader()
+
+def connect_to_leader():
+    global stub, SERVER_HOST, SERVER_PORT, subscription_active
+
+    with app_election_lock:
+        if APP_ELECTION_STATE != 'leader':
+            # print("[Connect] Not leader, skipping connection.")
+            return # Ensure only leader connects
+
+    # Rest of connect_to_leader logic...
+    noleader = True
+    for server in all_host_port_pairs:
+        print(f"Trying to connect to {server}")
+        print(f"All servers: {all_host_port_pairs}")
+        try:
+            temp_channel = grpc.insecure_channel(server)
+            temp_stub = chat_pb2_grpc.ChatServiceStub(temp_channel)
+            response = temp_stub.GetLeaderInfo(chat_pb2.GetLeaderInfoRequest())
+            leader_host, leader_port = response.info.split(':')
+            noleader = False
+
+            # update leader if necessary
+            if SERVER_HOST != leader_host or SERVER_PORT != leader_port:
+                SERVER_HOST = leader_host
+                SERVER_PORT = leader_port
+                print('NEW LEADER:', SERVER_HOST, SERVER_PORT)
+                channel = grpc.insecure_channel(f"{SERVER_HOST}:{SERVER_PORT}")
+                stub = chat_pb2_grpc.ChatServiceStub(channel)
+                load_game_state_from_server() # Load state from the new leader
+            break
+        except grpc.RpcError as e:
+            print(f"Failed to connect to {server}: {e.details()}")
+            continue  # Try next server
+    
+    return noleader
+
+def check_version_number():
+    global initial_state_loaded
+    print("[State] Attempting to check version number and load initial state...")
+    with app_election_lock:
+        if APP_ELECTION_STATE != 'leader':
+            print("[State] Not leader, skipping version check and initial load.")
+            return # Only leader performs initial check/load
+
+# --- Game State Synchronization ---
+def save_game_state(event_type="unknown", event_data=None):
+    with app_election_lock:
+        if APP_ELECTION_STATE != 'leader':
+            # print("[SaveState] Not leader, skipping save.")
+            return # Only leader saves state
+
+    serial_pile = {k: list(v) if hasattr(v, '__iter__') else v for k,v in cards_pile.items()} if cards_pile else None
+    event = {
+        "timestamp": datetime.now().isoformat(),
+        "event_type": event_type,
+        "expected_players": expected_players,
+        "game_started": game_started,
+        "game_finished": game_finished,
+        "winner": winner,
+        "players": players.copy(),
+        "scores": spotit_game.scores.copy() if spotit_game and spotit_game.scores else None,
+        "cards_pile": serial_pile,
+        "last_clicked_player_emoji": last_clicked_player_emoji,
+        "last_clicked_center_emoji": last_clicked_center_emoji
+    }
+    
+    if event_data:
+        event.update(event_data)
+    
+    # Add the event to the history
+    game_history.append(event)
+    
+    # Build full session snapshot for failover
+    session_data = {
+        "server_start_time": game_history[0]["timestamp"] if game_history else datetime.now().isoformat(),
+        "last_update_time": datetime.now().isoformat(),
+        "expected_players": expected_players,
+        "player_sessions": player_sessions,
+        "current_state": {
+            "game_started": game_started,
+            "game_finished": game_finished,
+            "winner": winner,
+            "players": players,
+            "scores": spotit_game.scores if spotit_game else None,
+            "cards_pile": {k: list(v) for k,v in cards_pile.items()} if cards_pile else None,
+            "full_card_deck": spotit_game.cards if spotit_game else None,
+            "last_clicked_player_emoji": last_clicked_player_emoji,
+            "last_clicked_center_emoji": last_clicked_center_emoji
+        },
+    }
+
+    response = stub.SaveGameState(chat_pb2.SaveGameStateRequest(session_data_json = json.dumps(session_data)))
+    if response.success:
+        print(response.success, 'saved game state')
+    else:
+        print(response.success, 'failed to save game state')
+
+def subscribe_to_updates(host, port):
+    global subscription_thread, subscription_call, subscription_active
+
+    with app_election_lock:
+        if APP_ELECTION_STATE != 'leader':
+            print("[Subscribe] Not leader, skipping subscription.")
+            return # Only leader subscribes
+    
+    # Existing logic...
+
+@app.route('/click/<card_index>/<emoji_index>')
+def click(card_index, emoji_index):
+    with app_election_lock:
+        if APP_ELECTION_STATE != 'leader':
+            return jsonify({"error": "Action only allowed by leader app instance.", "is_backup": True}), 403 # Forbidden
+
+    # Existing logic...
+
+@app.route('/reset_game')
+def reset_game():
+    with app_election_lock:
+        if APP_ELECTION_STATE != 'leader':
+            return jsonify({"error": "Action only allowed by leader app instance.", "is_backup": True}), 403 # Forbidden
+
+    # Existing logic...
+
 if __name__ == '__main__':
     # Command line argument for number of players
     parser = argparse.ArgumentParser(description='Spot It Game Server')
     parser.add_argument('--players', type=int, default=3, help='Number of players expected to join')
+    parser.add_argument("--all_apps", type=str, required=True,
+                        help="Comma-separated list of app configurations (id:host:port,...)")
+    parser.add_argument("--app_id", type=int, required=True, help="Unique ID for this Flask app instance (e.g., 1)")
     parser.add_argument("--all_ips", type=str, required=True,
-                        help="Comma-separated list of external IP addresses for all servers (order: server1,server2,server3)")
+                       help="Comma-separated list of external IP addresses for all servers (order: server1,server2,server3)")
     args = parser.parse_args()
     all_ips = args.all_ips.split(",")
     all_host_port_pairs = [f"{all_ips[i]}:{ports[i+1]}" for i in range(len(all_ips))]
+
+    all_app_configs = []
+    for app_config in args.all_apps.split(','):
+        id, host, port = app_config.split(':')
+        all_app_configs.append({'id': int(id), 'host': host, 'port': int(port)})
     expected_players = args.players
     print(f"Starting Spot It game server with {expected_players} expected players")
+
+    # --- App Election Setup ---
+    start_app_election(args.app_id, all_app_configs)
+    # --- End App Election Setup ---
 
     start_connect_to_leader_scheduler()
     check_version_number()
     # Initialize the first game state entry
-    save_game_state(event_type="server_start")
-    app.run(debug=True, host='0.0.0.0', port=5001)
+    # save_game_state(event_type="server_start") 
+
+    # Determine the host and port for this specific instance
+    current_config = next((cfg for cfg in all_app_configs if cfg['id'] == args.app_id), None)
+    if not current_config:
+        print(f"Error: Could not find configuration for app_id {args.app_id} in --all_apps")
+        sys.exit(1)
+
+    print(f"Starting Flask app on {current_config['host']}:{current_config['port']} with App ID {args.app_id}")
+    # Use 0.0.0.0 to bind to all interfaces if needed, but use specific host from config if provided
+    run_host = '0.0.0.0' # Or current_config['host'] if you only want it accessible via that specific IP
+    app.run(debug=True, host=run_host, port=current_config['port'], use_reloader=False)
