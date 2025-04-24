@@ -57,11 +57,94 @@ player_sessions = {}  # Map session IDs to usernames
 # Game history tracking
 game_history = []
 
+initial_state_loaded = False # Flag to track initial load
+
+def load_game_state_from_server():
+    """Load game state from the leader server via gRPC and update globals."""
+    global stub, expected_players, player_sessions, players, game_started, game_finished, winner, scores, cards, cards_pile, game_history, spotit_game, initial_state_loaded
+    
+    if not stub:
+        print("[LoadState] Error: No connection to leader server (stub is None).")
+        return False
+
+    print("[LoadState] Attempting to load game state from leader...")
+    try:
+        response = stub.LoadGameState(chat_pb2.LoadGameStateRequest())
+        if response.success and response.session_data_json:
+            print("[LoadState] Successfully received game state from leader.")
+            loaded_data = json.loads(response.session_data_json)
+            
+            # --- Update Global State Variables --- 
+            expected_players = loaded_data.get('expected_players', expected_players)
+            player_sessions = loaded_data.get('player_sessions', {})
+            game_history = loaded_data.get('game_history', []) # Load history
+
+            current_state = loaded_data.get('current_state', {})
+            game_started = current_state.get('game_started', False)
+            game_finished = current_state.get('game_finished', False)
+            winner = current_state.get('winner', None)
+            loaded_scores = current_state.get('scores')
+            loaded_cards_pile = current_state.get('cards_pile')
+            loaded_cards = current_state.get('full_card_deck') # Use the full deck saved
+
+            # Reconstruct players dictionary 
+            loaded_players_state = current_state.get('players', {})
+            players.clear()
+            players.update(loaded_players_state)
+            
+            # --- Initialize SpotItGame Object --- 
+            player_names_list = list(players.keys())
+            if loaded_cards and loaded_cards_pile and loaded_scores is not None and player_names_list:
+                scores = loaded_scores # Update global scores
+                cards = loaded_cards # Update global cards (full deck)
+                cards_pile = loaded_cards_pile # Update global cards_pile
+                
+                # Convert card pile values back to deque if needed (center)
+                if 'center' in cards_pile and isinstance(cards_pile['center'], list):
+                     cards_pile['center'] = deque(cards_pile['center'])
+                
+                spotit_game = SpotItGame(player_names_list, 
+                                         initial_cards=cards, 
+                                         initial_cards_pile=cards_pile, 
+                                         initial_scores=scores)
+                print("[LoadState] SpotItGame object re-initialized from loaded state.")
+            elif player_names_list: # If state incomplete but players exist, start new game logic
+                 print("[LoadState] Incomplete state loaded, initializing new SpotItGame logic.")
+                 new_game_state() # Fallback to creating a new game state if loaded is incomplete
+            else:
+                print("[LoadState] No player names found in loaded state, cannot initialize SpotItGame.")
+                spotit_game = None # Ensure game object is None if we can't init
+
+            initial_state_loaded = True # Mark initial load as complete
+            print(f"[LoadState] Game state loaded. Started: {game_started}, Finished: {game_finished}, Winner: {winner}")
+            print(f"[LoadState] Players: {players}")
+            print(f"[LoadState] Scores: {scores}")
+            return True
+        else:
+            print(f"[LoadState] Failed to load game state from leader. Success: {response.success}, Message: {response.message}")
+            # If loading fails on first attempt, maybe start fresh? Or wait?
+            if not initial_state_loaded:
+                print("[LoadState] Initial load failed. Starting with a fresh state.")
+                # Potentially call new_game_state() here if desired
+                pass # Currently does nothing, waits for players to join
+            return False
+    except grpc.RpcError as e:
+        print(f"[LoadState] gRPC Error loading game state: {e.details()}")
+        return False
+    except json.JSONDecodeError as e:
+        print(f"[LoadState] Error decoding JSON game state: {e}")
+        return False
+    except Exception as e:
+        print(f"[LoadState] Unexpected error loading game state: {e}")
+        return False
+
 def connect_to_leader():
     global SERVER_HOST, SERVER_PORT, stub, subscription_thread, subscription_call, subscription_active
     print('checking leader')
     noleader = True
     for server in all_host_port_pairs:
+        print(f"Trying to connect to {server}")
+        print(f"All servers: {all_host_port_pairs}")
         try:
             temp_channel = grpc.insecure_channel(server)
             temp_stub = chat_pb2_grpc.ChatServiceStub(temp_channel)
@@ -76,10 +159,10 @@ def connect_to_leader():
                 print('NEW LEADER:', SERVER_HOST, SERVER_PORT)
                 channel = grpc.insecure_channel(f"{SERVER_HOST}:{SERVER_PORT}")
                 stub = chat_pb2_grpc.ChatServiceStub(channel)
-                # stub.LoadActiveUsersAndSubscribersFromPersistent(chat_pb2.Empty()) # TODO NEED TO MAKE SOMETHING LIKE THIS TO RETRIEVE FROM PERSISTENT
+                load_game_state_from_server() # Load state from the new leader
             break
-        except:
-            print(f"Failed to connect to {server}")
+        except grpc.RpcError as e:
+            print(f"Failed to connect to {server}: {e.details()}")
             continue  # Try next server
     
     return noleader
@@ -113,6 +196,8 @@ def check_version_number():
            return None
        
        print(f"Successfully connected to server at {SERVER_HOST}:{SERVER_PORT} {response.message}")
+       if not initial_state_loaded:
+           load_game_state_from_server()
        return True
     except grpc.RpcError as e:
         print(f"Error: {e.details()}")
@@ -155,6 +240,7 @@ def save_game_state(event_type="update", extra_data=None):
             "players": players,
             "scores": spotit_game.scores if spotit_game else None,
             "cards_pile": {k: list(v) for k,v in cards_pile.items()} if cards_pile else None,
+            "full_card_deck": spotit_game.cards if spotit_game else None,
             "last_clicked_player_emoji": last_clicked_player_emoji,
             "last_clicked_center_emoji": last_clicked_center_emoji
         },

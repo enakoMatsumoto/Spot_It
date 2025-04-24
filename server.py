@@ -112,6 +112,7 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
         self.store = store
         self.election = election
         self.peers = peers  # List of (peer_id, address)
+        self.server_id = election.server_id # Store server_id
         self.load_from_persistent = True # Only allow loading from persistent once
 
     def replicate_to_peers(self, method, rep_req):
@@ -164,17 +165,22 @@ class ChatService(chat_pb2_grpc.ChatServiceServicer):
         """
         return chat_pb2.GetLeaderInfoResponse(info=self.election.elect())
     
-    # def LoadActiveUsersAndSubscribersFromPersistent(self, request, context):
-    #     """
-    #         Called when the client connects to the new leader server, and the 
-    #         new server needs to load the acive_users and subscribers from the persistent
-    #     """
-    #     self.active_users = self.store.active_users_set
-    #     if self.load_from_persistent:
-    #         for username, info in self.store.subscribers_set.items():
-    #             self.subscribers[username] = {"cond": threading.Condition(), "queue": info.get("queue", [])}
-    #         self.load_from_persistent = False
-    #     return chat_pb2.Empty()
+    def LoadGameState(self, request, context):
+        print(f"Server {self.server_id}: LoadGameState called by {context.peer()}")
+        try:
+            with self.store.lock: # Use the persistent store's lock
+                if os.path.exists(self.store.filename):
+                    with open(self.store.filename, 'r') as f:
+                        session_data_json = f.read()
+                    print(f"Server {self.server_id}: Successfully loaded state from {self.store.filename}")
+                    return chat_pb2.LoadGameStateResponse(success=True, session_data_json=session_data_json)
+                else:
+                    print(f"Server {self.server_id}: State file {self.store.filename} not found.")
+                    return chat_pb2.LoadGameStateResponse(success=False, error_message=f"State file {self.store.filename} not found.")
+        except Exception as e:
+            error_msg = f"Error loading game state from {self.store.filename}: {e}"
+            print(f"Server {self.server_id}: {error_msg}")
+            return chat_pb2.LoadGameStateResponse(success=False, error_message=error_msg)
 
     def CheckVersion(self, request, context):
         if request.version != SERVER_VERSION:
@@ -264,4 +270,3 @@ if __name__ == "__main__":
         server_id = args.id
         port = ports[server_id]
         serve(server_id, host, port, peers)
-

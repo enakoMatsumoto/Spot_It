@@ -69,13 +69,28 @@ def shuffle_cards(cards):
     return cards
 
 class SpotItGame:
-    def __init__(self, player_names):
-        self.cards = shuffle_cards(generate_cards())
+    def __init__(self, player_names, initial_cards=None, initial_cards_pile=None, initial_scores=None):
         self.player_names = player_names
         self.n_players = len(player_names)
-        self.cards_pile = {player_id: [self.cards[player_id]] for player_id in range(self.n_players)}
-        self.cards_pile['center'] = deque(self.cards[self.n_players:])
-        self.scores = [0] * self.n_players
+
+        if initial_cards is not None and initial_cards_pile is not None and initial_scores is not None:
+            # Load from initial state
+            self.cards = initial_cards
+            # Convert player ID keys back to int if they are strings, handle 'center'
+            self.cards_pile = {int(k) if k.isdigit() else k: v for k, v in initial_cards_pile.items()}
+            # Convert center pile list back to deque if it exists and is a list
+            if 'center' in self.cards_pile and isinstance(self.cards_pile['center'], list):
+                 self.cards_pile['center'] = deque(self.cards_pile['center'])
+            self.scores = initial_scores
+            print("[SpotItGame] Initialized from loaded state.") # Added log
+        else:
+            # Initialize new game state
+            self.cards = shuffle_cards(generate_cards())
+            self.cards_pile = {player_id: [self.cards[player_id]] for player_id in range(self.n_players)}
+            self.cards_pile['center'] = deque(self.cards[self.n_players:])
+            self.scores = [0] * self.n_players
+            print("[SpotItGame] Initialized new game state.") # Added log
+
         self.last_clicked_player_emoji = None
         self.last_clicked_center_emoji = None
 

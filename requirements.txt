@@ -1,7 +1,7 @@
 flask
 numpy
 sympy
-grpcio==1.62.2
-grpcio-tools==1.62.2
-protobuf==4.25.3
+grpcio==1.70.0
+grpcio-tools==1.70.0
+protobuf==5.29.3
 APScheduler
