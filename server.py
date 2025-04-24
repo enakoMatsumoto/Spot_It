@@ -9,7 +9,7 @@ import atexit
 
 HEARTBEAT_INTERVAL = 2  # seconds
 SERVER_VERSION = "1.0.0"
-ports = {1: 8001, 2: 8002, 3: 8003}
+ports = {1: 6001, 2: 6002, 3: 6003}
 all_host_port_pairs = []
 
 # -------------------------
@@ -264,4 +264,3 @@ if __name__ == "__main__":
         server_id = args.id
         port = ports[server_id]
         serve(server_id, host, port, peers)
-
