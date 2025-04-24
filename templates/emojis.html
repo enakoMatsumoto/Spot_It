@@ -25,7 +25,7 @@
     </div>
 
     <div style="text-align: center;">
-      <div style="font-weight: bold; margin-bottom: 10px;">PLAYER</div>
+      <div style="font-weight: bold; margin-bottom: 10px;">PLAYER: {{ player_name }}</div>
       <div style="margin-bottom: 10px;">
         <button class="swal1-button" onclick="rotate('counterclockwise')">🔄</button>
         <button class="swal1-button" onclick="rotate('clockwise')">🔁</button>
@@ -49,7 +49,7 @@
     right: 20px;
     padding: 12px 20px;">Shuffle Deck
   </button>
-  <button class="swal2-button" onclick="start_new_game()" style="
+  <button class="swal2-button" onclick="startNewGame()" style="
   position: fixed;
   top: 20px;
   right: 20px;
@@ -79,12 +79,30 @@
 
   <script src="{{ url_for('static', filename='script.js') }}"></script>
   <script>
-    
+    // Store player information
+    const player_id = {{ player_id }};
+    const player_name = "{{ player_name }}";
     const init_names = {{ names | tojson }};
     const init_scores = {{ scores | tojson }};
-    // Call it to populate
-    updateScoreboard(init_names, init_scores);
-
+    
+    // Highlight current player in scoreboard
+    function updateScoreboardWithHighlight(names, scores) {
+      updateScoreboard(names, scores);
+      
+      // Highlight current player
+      const nameRow = document.getElementById('name-row');
+      const scoreRow = document.getElementById('score-row');
+      
+      if (nameRow && scoreRow && nameRow.children.length > player_id) {
+        nameRow.children[player_id].style.fontWeight = 'bold';
+        nameRow.children[player_id].style.color = '#0066cc';
+        scoreRow.children[player_id].style.fontWeight = 'bold';
+        scoreRow.children[player_id].style.color = '#0066cc';
+      }
+    }
+    
+    // Call it to populate with highlighting
+    updateScoreboardWithHighlight(init_names, init_scores);
   </script>
 
 </body>

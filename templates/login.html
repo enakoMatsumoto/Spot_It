@@ -17,9 +17,11 @@
   align-items: center;
   gap: 20px;">
   
+  <h1>Spot It! Online</h1>
+  <p>Enter your username to join the game. Waiting for <span id="waiting-count">{{ expected_players - current_players }}</span> more players.</p>
+  <p style="display: none;">Total expected players: <span id="expected-players">{{ expected_players }}</span></p>
+  
   <button class="swal2-button" onclick="promptUsername()" style="padding: 12px 20px;">Join Game</button>
-
-  <button class="swal2-button" onclick="start_new_game()" style="padding: 12px 20px;">Start New Game</button>
 
 </div>
 
