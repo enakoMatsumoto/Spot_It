@@ -1275,19 +1275,20 @@ if __name__ == '__main__':
     # Command line argument for number of players
     parser = argparse.ArgumentParser(description='Spot It Game Server')
     parser.add_argument('--players', type=int, default=3, help='Number of players expected to join')
-    parser.add_argument("--all_apps", type=str, required=True,
-                        help="Comma-separated list of app configurations (id:host:port,...)")
+    parser.add_argument("--all_apps_ip", type=str, required=True,
+                        help="Comma-separated list of app IP addresses (order: app1,app2,app3)")
     parser.add_argument("--app_id", type=int, required=True, help="Unique ID for this Flask app instance (e.g., 1)")
     parser.add_argument("--all_ips", type=str, required=True,
                        help="Comma-separated list of external IP addresses for all servers (order: server1,server2,server3)")
     args = parser.parse_args()
     all_ips = args.all_ips.split(",")
     all_host_port_pairs = [f"{all_ips[i]}:{ports[i+1]}" for i in range(len(all_ips))]
-
-    all_app_configs = []
-    for app_config in args.all_apps.split(','):
-        id, host, port = app_config.split(':')
-        all_app_configs.append({'id': int(id), 'host': host, 'port': int(port)})
+    flask_ports = {1: 5001, 2: 5002, 3: 5003}
+    all_app_configs = [
+        {'id': 1, 'host': args.all_apps_ip.split(",")[0], 'port': flask_ports[1]},
+        {'id': 2, 'host': args.all_apps_ip.split(",")[1], 'port': flask_ports[2]},
+        {'id': 3, 'host': args.all_apps_ip.split(",")[2], 'port': flask_ports[3]},
+    ]
     expected_players = args.players
     print(f"Starting Spot It game server with {expected_players} expected players")
 
@@ -1303,10 +1304,10 @@ if __name__ == '__main__':
     # Determine the host and port for this specific instance
     current_config = next((cfg for cfg in all_app_configs if cfg['id'] == args.app_id), None)
     if not current_config:
-        print(f"Error: Could not find configuration for app_id {args.app_id} in --all_apps")
+        print(f"Error: Could not find configuration for app_id {args.app_id} in --all_apps_ip")
         sys.exit(1)
 
     print(f"Starting Flask app on {current_config['host']}:{current_config['port']} with App ID {args.app_id}")
     # Use 0.0.0.0 to bind to all interfaces if needed, but use specific host from config if provided
     run_host = '0.0.0.0' # Or current_config['host'] if you only want it accessible via that specific IP
-    app.run(debug=True, host=run_host, port=current_config['port'], use_reloader=False)
+    app.run(host=run_host, port=current_config['port'], debug=True)

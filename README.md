@@ -40,15 +40,15 @@ To run the application with high availability (3 backend servers and 3 frontend 
 
 *   **Terminal 4 (App 1 - Port 5001):**
     ```bash
-    python app.py --app_id 1 --all_apps "1:127.0.0.1:5001,2:127.0.0.1:5002,3:127.0.0.1:5003" --all_ips "127.0.0.1,127.0.0.1,127.0.0.1" --players 2
+    python app.py --app_id 1 --all_apps_ip "127.0.0.1,127.0.0.1,127.0.0.1" --all_ips "127.0.0.1,127.0.0.1,127.0.0.1" --players 2
     ```
 *   **Terminal 5 (App 2 - Port 5002):**
     ```bash
-    python app.py --app_id 2 --all_apps "1:127.0.0.1:5001,2:127.0.0.1:5002,3:127.0.0.1:5003" --all_ips "127.0.0.1,127.0.0.1,127.0.0.1" --players 2
+    python app.py --app_id 2 --all_apps_ip "127.0.0.1,127.0.0.1,127.0.0.1" --all_ips "127.0.0.1,127.0.0.1,127.0.0.1" --players 2
     ```
 *   **Terminal 6 (App 3 - Port 5003):**
     ```bash
-    python app.py --app_id 3 --all_apps "1:127.0.0.1:5001,2:127.0.0.1:5002,3:127.0.0.1:5003" --all_ips "127.0.0.1,127.0.0.1,127.0.0.1" --players 2
+    python app.py --app_id 3 --all_apps_ip "127.0.0.1,127.0.0.1,127.0.0.1" --all_ips "127.0.0.1,127.0.0.1,127.0.0.1" --players 2
     ```
 
 **3. Accessing the Game:**
