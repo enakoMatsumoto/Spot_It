@@ -43,6 +43,18 @@
     </div>
   </div>
 
+  {% if auto_reload_url %}
+  <a href="{{ auto_reload_url }}">
+    <button class="swal2-button" onclick="startNewGame()" style="
+    position: fixed;
+    top: 20px;
+    right: 200px;
+    padding: 12px 20px;">Go To Backup
+    </button>
+  </a>
+{% endif %}
+
+
   <button class="swal2-button" onclick="shuffle()" style="
     position: fixed;
     bottom: 20px;
@@ -84,15 +96,15 @@
     const player_name = "{{ player_name }}";
     const init_names = {{ names | tojson }};
     const init_scores = {{ scores | tojson }};
-    
+
     // Highlight current player in scoreboard
     function updateScoreboardWithHighlight(names, scores) {
       updateScoreboard(names, scores);
-      
+
       // Highlight current player
       const nameRow = document.getElementById('name-row');
       const scoreRow = document.getElementById('score-row');
-      
+
       if (nameRow && scoreRow && nameRow.children.length > player_id) {
         nameRow.children[player_id].style.fontWeight = 'bold';
         nameRow.children[player_id].style.color = '#0066cc';
@@ -100,7 +112,7 @@
         scoreRow.children[player_id].style.color = '#0066cc';
       }
     }
-    
+
     // Call it to populate with highlighting
     updateScoreboardWithHighlight(init_names, init_scores);
   </script>

@@ -6,3 +6,4 @@ grpcio-tools==1.70.0
 protobuf==5.29.3
 APScheduler
 requests
+flask-cors

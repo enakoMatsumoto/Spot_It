@@ -19,8 +19,10 @@ from server import ports
 import sys
 import requests
 from flask import Response
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 app.config['SECRET_KEY'] = os.urandom(24)  # Secret key for session management
 app.config['SESSION_TYPE'] = 'filesystem'
 app.config['SESSION_PERMANENT'] = True
@@ -32,6 +34,7 @@ SERVER_PORT = ""
 stub = None
 all_host_port_pairs = []
 is_leader = False
+AUTO_RELOAD_NEEDED = None
 
 scheduler = BackgroundScheduler()
 
@@ -470,12 +473,12 @@ def set_username():
         # Store in session
         session['session_id'] = session_id
         session['username'] = username
-        
+
         # Debug after setting
         print(f"Set username in session: {username}")
         print(f"Session ID: {session_id}")
         print(f"Full session: {session}")
-        
+
         # Add player to tracking
         players[username] = {
             "status": "waiting",
@@ -1018,7 +1021,7 @@ class AppLeaderElection:
 
     def elect(self):
         """ Performs the leader election logic using hosts and ports. """
-        global APP_ELECTION_STATE, APP_LEADER_HOST, APP_LEADER_PORT
+        global APP_ELECTION_STATE, APP_LEADER_HOST, APP_LEADER_PORT, AUTO_RELOAD_NEEDED
         with app_election_lock: # Use the global lock
             
             # --- Update Peer Status --- 
@@ -1072,6 +1075,8 @@ class AppLeaderElection:
                 APP_ELECTION_STATE = new_state
                 APP_LEADER_HOST = new_leader_host
                 APP_LEADER_PORT = new_leader_port
+                next_leader_config = next((cfg for cfg in self.all_configs if cfg['id'] > current_leader_id), None)
+                AUTO_RELOAD_NEEDED = [next_leader_config['host'], next_leader_config['port']]
 
     def run_election_loop(self):
         """ Continuously runs the election process. """
@@ -1137,6 +1142,35 @@ def check_app_leader_status():
     else: # Initializing state
         # Decide if initializing state should block or show a specific page
         return Response("<html><body><h1>Initializing Leader Election...</h1><p>Please wait.</p></body></html>", status=200, mimetype='text/html')
+
+# --- Check if new leader has been decided, in which case need to initiate reload
+# @app.before_request
+# def check_reload_needed():
+#     global AUTO_RELOAD_NEEDED
+#     if AUTO_RELOAD_NEEDED:
+#         AUTO_RELOAD_NEEDED = False  # reset flag after redirect
+#         print('CURRENT ISD', current_player_sid)
+#         if current_player_sid:
+#             url = f"http://{APP_LEADER_HOST}:{APP_LEADER_PORT}/spot_it_game?session_id={current_player_sid}"
+#         else:
+#             url = f"http://{APP_LEADER_HOST}:{APP_LEADER_PORT}"
+#         return redirect(url, code=302)
+
+@app.context_processor
+def inject_auto_reload_url():
+    global AUTO_RELOAD_NEEDED
+    sid = request.headers.get('X-Session-Id') or request.args.get('session_id')
+    return {'auto_reload_url': F'http://{AUTO_RELOAD_NEEDED[0]}:{AUTO_RELOAD_NEEDED[1]}/spot_it_game?session_id={sid}'}
+    # global AUTO_RELOAD_NEEDED
+    # print('AUTORELOADTYPE', type(AUTO_RELOAD_NEEDED))
+    # if AUTO_RELOAD_NEEDED:
+    #     response = {'auto_reload_url': f'http://{AUTO_RELOAD_NEEDED}:{AUTO_RELOAD_NEEDED}/'}
+    #     print(response)
+    #     # AUTO_RELOAD_NEEDED = False
+    #     return {'auto_reload_url': 'http://127.0.0.1:5002'}
+    # else:
+    #     return {'auto_reload_url': None}
+
 
 # --- gRPC Connection Management ---
 @scheduler.scheduled_job('interval', seconds=10, id='connect_job')
