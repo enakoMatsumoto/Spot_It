@@ -54,3 +54,11 @@ To run the application with high availability (3 backend servers and 3 frontend 
 **3. Accessing the Game:**
 
 Open your web browser and navigate to the address of the current leader app (initially `http://127.0.0.1:5001`). If the leader app fails, one of the other apps (`http://127.0.0.1:5002` or `http://127.0.0.1:5003`) will take over after a short delay.
+
+**4. Running Tests:**
+
+To run the tests, use the following command:
+```bash
+python -m unittest discover tests
+```
+The tests will generate a json file with every run, which will need to be deleted before running the tests again.
