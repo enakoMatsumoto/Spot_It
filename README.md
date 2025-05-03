@@ -76,4 +76,4 @@ The tests verify:
 - gRPC server communication and failover mechanisms
 - Game state replication between servers
 
-Note:After each test run, json files will be generated in the Spot_It directory. These files will need to be deleted before running the tests again.
+Note: After each test run, json files will be generated in the Spot_It directory. These files will need to be deleted before running the tests again.
