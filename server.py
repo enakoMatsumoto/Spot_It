@@ -19,17 +19,13 @@ class PersistentStore:
     def __init__(self, filename):
         self.filename = filename
         self.lock = threading.RLock()
+        if os.path.exists(filename):
+            os.remove(filename)
+            print(f"Cleared {filename}")
     
     def save(self, session_data_json):
         with self.lock:
-            # data = {
-            #     "users": self.users,
-            #     "subscribers": self.subscribers_set,
-            #     "active_users": list(self.active_users_set)
-            # }
             with open(self.filename, 'w') as f:
-                # json.dump(data, f, indent=2)
-                # json.dump(session_data, f, indent=2)
                 f.write(session_data_json)
 
 # -------------------------
