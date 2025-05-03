@@ -55,10 +55,25 @@ To run the application with high availability (3 backend servers and 3 frontend 
 
 Open your web browser and navigate to the address of the current leader app (initially `http://127.0.0.1:5001`). If the leader app fails, one of the other apps (`http://127.0.0.1:5002` or `http://127.0.0.1:5003`) will take over after a short delay.
 
-**4. Running Tests:**
+## Running the Tests
 
-To run the tests, use the following command:
+The project includes unit tests for both the game logic and the gRPC communication. To run the tests:
+
 ```bash
+# Make sure you're in the project root directory
+cd /path/to/Spot_It
+
+# Run all tests
 python -m unittest discover tests
+
+# Run specific test files
+python -m unittest tests/test_spotit.py  # Game logic tests
+python -m unittest tests/test_grpc.py    # gRPC communication tests
 ```
-The tests will generate a json file with every run, which will need to be deleted before running the tests again.
+
+The tests verify:
+- Game logic functionality (card generation, game state management, scoring)
+- gRPC server communication and failover mechanisms
+- Game state replication between servers
+
+Note:After each test run, json files will be generated in the Spot_It directory. These files will need to be deleted before running the tests again.
